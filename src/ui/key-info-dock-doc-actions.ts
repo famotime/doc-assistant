@@ -101,9 +101,11 @@ function buildGroupLabel(options: {
   const separator = document.createElement("div");
   separator.className = "doc-assistant-keyinfo__action-separator";
   separator.dataset.groupKey = groupKey;
+  separator.classList.toggle("is-collapsed", collapsed);
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "doc-assistant-keyinfo__action-separator-toggle";
+  toggle.classList.toggle("is-collapsed", collapsed);
   toggle.setAttribute("aria-expanded", String(!collapsed));
   const toggleIcon = document.createElement("span");
   toggleIcon.className = "doc-assistant-keyinfo__action-separator-toggle-icon";

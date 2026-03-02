@@ -18,6 +18,57 @@ function item(id: string): KeyInfoItem {
 }
 
 describe("key-info-dock scroll interaction", () => {
+  test("exposes key info type hook on each rendered row", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+    });
+
+    dock.setState({
+      items: [
+        {
+          ...item("1"),
+          type: "highlight",
+        },
+      ],
+      loading: false,
+      isRefreshing: false,
+    });
+
+    const row = host.querySelector(".doc-assistant-keyinfo__row") as HTMLDivElement | null;
+    expect(row).toBeTruthy();
+    expect(row?.dataset.type).toBe("highlight");
+
+    dock.destroy();
+    host.remove();
+  });
+
+  test("shows key info summary in header meta line", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+    });
+
+    dock.setState({
+      items: [item("1"), item("2"), item("3")],
+      filter: ["bold"],
+      loading: false,
+      isRefreshing: false,
+    });
+
+    const meta = host.querySelector(".doc-assistant-keyinfo__meta") as HTMLDivElement | null;
+    expect(meta).toBeTruthy();
+    expect(meta?.textContent).toContain("关键内容 3");
+    expect(meta?.textContent).toContain("当前筛选 3");
+
+    dock.destroy();
+    host.remove();
+  });
+
   test("allows immediate user scrolling after clicking a key item", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);

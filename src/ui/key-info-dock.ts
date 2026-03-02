@@ -156,10 +156,14 @@ export function createKeyInfoDock(
   const docTitle = document.createElement("div");
   docTitle.className = "doc-assistant-keyinfo__doc-title ft__secondary";
   docTitle.textContent = "未选择文档";
+  const meta = document.createElement("div");
+  meta.className = "doc-assistant-keyinfo__meta ft__secondary";
+  meta.textContent = "关键内容 0 · 当前筛选 0";
   titleRow.appendChild(title);
   titleRow.appendChild(loadingTag);
   header.appendChild(titleRow);
   header.appendChild(docTitle);
+  header.appendChild(meta);
 
   const tabs = document.createElement("div");
   tabs.className = "doc-assistant-keyinfo__tabs";
@@ -466,6 +470,7 @@ export function createKeyInfoDock(
   ) => {
     row.className = "doc-assistant-keyinfo__row";
     row.dataset.keyinfoId = item.id;
+    row.dataset.type = item.type;
     if (item.blockId) {
       row.dataset.blockId = item.blockId;
     } else {
@@ -620,6 +625,13 @@ export function createKeyInfoDock(
     } else {
       loadingTag.classList.remove("is-visible");
     }
+    if (state.activeTab === "key-info") {
+      const visibleCount = filterItems(state.items, state.filter).length;
+      meta.textContent = `关键内容 ${state.items.length} · 当前筛选 ${visibleCount}`;
+      return;
+    }
+    const registeredCount = state.docActions.filter((action) => action.menuRegistered).length;
+    meta.textContent = `文档命令 ${state.docActions.length} · 收藏 ${state.favoriteActionKeys.length} · 已注册 ${registeredCount}`;
   };
 
   const setState = (next: Partial<KeyInfoDockState>) => {
