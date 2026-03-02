@@ -18,6 +18,43 @@ function item(id: string): KeyInfoItem {
 }
 
 describe("key-info-dock scroll interaction", () => {
+  test("centers assistant title in panel header", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+    });
+
+    const titleRow = host.querySelector(".doc-assistant-keyinfo__title-row") as HTMLDivElement | null;
+    expect(titleRow).toBeTruthy();
+    expect(titleRow?.classList.contains("doc-assistant-keyinfo__title-row--centered")).toBe(true);
+
+    dock.destroy();
+    host.remove();
+  });
+
+  test("renders document title with prominent visual class", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+    });
+
+    dock.setState({
+      docTitle: "测试文档标题",
+    });
+
+    const docTitle = host.querySelector(".doc-assistant-keyinfo__doc-title") as HTMLDivElement | null;
+    expect(docTitle).toBeTruthy();
+    expect(docTitle?.classList.contains("doc-assistant-keyinfo__doc-title--prominent")).toBe(true);
+    expect(docTitle?.textContent).toBe("测试文档标题");
+
+    dock.destroy();
+    host.remove();
+  });
+
   test("exposes key info type hook on each rendered row", () => {
     const host = document.createElement("div");
     document.body.appendChild(host);
@@ -67,6 +104,73 @@ describe("key-info-dock scroll interaction", () => {
 
     dock.destroy();
     host.remove();
+  });
+
+  test("shows doc process summary in header meta without update timestamp", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+    });
+
+    dock.setState({
+      activeTab: "doc-process",
+      favoriteActionKeys: ["export-current"],
+      docActions: [
+        {
+          key: "export-current",
+          label: "仅导出当前文档",
+          icon: "iconDownload",
+          group: "export",
+          groupLabel: "导出",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+        {
+          key: "move-backlinks",
+          label: "移动反链文档为子文档",
+          icon: "iconMove",
+          group: "organize",
+          groupLabel: "整理",
+          disabled: false,
+          menuRegistered: false,
+          menuToggleDisabled: false,
+        },
+      ],
+    });
+
+    const meta = host.querySelector(".doc-assistant-keyinfo__meta") as HTMLDivElement | null;
+    const metaTime = host.querySelector(".doc-assistant-keyinfo__meta-time") as HTMLSpanElement | null;
+    expect(meta?.textContent).toContain("文档命令 2");
+    expect(meta?.textContent).toContain("收藏 1");
+    expect(meta?.textContent).toContain("已注册 1");
+    expect(metaTime).toBeNull();
+
+    dock.destroy();
+    host.remove();
+  });
+
+  test("marks root as entering on mount and settles after animation window", () => {
+    vi.useFakeTimers();
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+    });
+    const root = host.querySelector(".doc-assistant-keyinfo") as HTMLDivElement | null;
+    expect(root).toBeTruthy();
+    expect(root?.classList.contains("is-entering")).toBe(true);
+
+    vi.advanceTimersByTime(220);
+    expect(root?.classList.contains("is-entering")).toBe(false);
+    expect(root?.classList.contains("is-entered")).toBe(true);
+
+    dock.destroy();
+    host.remove();
+    vi.useRealTimers();
   });
 
   test("allows immediate user scrolling after clicking a key item", () => {

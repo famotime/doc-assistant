@@ -141,12 +141,16 @@ export function createKeyInfoDock(
   };
 
   const root = document.createElement("div");
-  root.className = "doc-assistant-keyinfo";
+  root.className = "doc-assistant-keyinfo is-entering";
+  const entryAnimationTimer = setTimeout(() => {
+    root.classList.remove("is-entering");
+    root.classList.add("is-entered");
+  }, 180);
 
   const header = document.createElement("div");
   header.className = "doc-assistant-keyinfo__header";
   const titleRow = document.createElement("div");
-  titleRow.className = "doc-assistant-keyinfo__title-row";
+  titleRow.className = "doc-assistant-keyinfo__title-row doc-assistant-keyinfo__title-row--centered";
   const title = document.createElement("div");
   title.className = "doc-assistant-keyinfo__title";
   title.textContent = "文档助手";
@@ -154,7 +158,7 @@ export function createKeyInfoDock(
   loadingTag.className = "doc-assistant-keyinfo__loading ft__secondary";
   loadingTag.textContent = "";
   const docTitle = document.createElement("div");
-  docTitle.className = "doc-assistant-keyinfo__doc-title ft__secondary";
+  docTitle.className = "doc-assistant-keyinfo__doc-title doc-assistant-keyinfo__doc-title--prominent";
   docTitle.textContent = "未选择文档";
   const meta = document.createElement("div");
   meta.className = "doc-assistant-keyinfo__meta ft__secondary";
@@ -677,6 +681,7 @@ export function createKeyInfoDock(
   updateFilterButtons();
   updateTabButtons();
   renderTabPanels();
+  renderHeader();
   renderList();
   renderDocMenuToggle();
   renderDocActions();
@@ -686,6 +691,7 @@ export function createKeyInfoDock(
     getState: () => ({ ...state }),
     getVisibleItems: () => filterItems(state.items, state.filter),
     destroy: () => {
+      clearTimeout(entryAnimationTimer);
       element.replaceChildren();
     },
   };
