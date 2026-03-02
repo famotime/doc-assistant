@@ -513,4 +513,243 @@ describe("key-info-dock scroll interaction", () => {
     host.remove();
     sprite.remove();
   });
+
+  test("renders favorites group at top and duplicates favorited actions for quick access", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+      onDocActionClick: () => {},
+    });
+
+    dock.setState({
+      favoriteActionKeys: ["insert-backlinks"],
+      docActions: [
+        {
+          key: "export-current",
+          label: "仅导出当前文档",
+          icon: "iconDownload",
+          group: "export",
+          groupLabel: "导出",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+        {
+          key: "insert-backlinks",
+          label: "插入反链文档列表（去重）",
+          icon: "iconList",
+          group: "insert",
+          groupLabel: "插入",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+      ],
+    });
+
+    const groupLabels = Array.from(
+      host.querySelectorAll(".doc-assistant-keyinfo__action-separator-label")
+    ).map((node) => (node.textContent || "").trim());
+    const actionLabels = Array.from(
+      host.querySelectorAll(".doc-assistant-keyinfo__action-label")
+    ).map((node) => (node.textContent || "").trim());
+
+    expect(groupLabels[0]).toBe("收藏");
+    expect(actionLabels).toEqual([
+      "插入反链文档列表（去重）",
+      "仅导出当前文档",
+      "插入反链文档列表（去重）",
+    ]);
+
+    dock.destroy();
+    host.remove();
+  });
+
+  test("toggles favorite action via star button", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const onDocActionFavoriteToggle = vi.fn();
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+      onDocActionClick: () => {},
+      onDocActionFavoriteToggle,
+    });
+
+    dock.setState({
+      favoriteActionKeys: ["insert-backlinks"],
+      docActions: [
+        {
+          key: "export-current",
+          label: "仅导出当前文档",
+          icon: "iconDownload",
+          group: "export",
+          groupLabel: "导出",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+        {
+          key: "insert-backlinks",
+          label: "插入反链文档列表（去重）",
+          icon: "iconList",
+          group: "insert",
+          groupLabel: "插入",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+      ],
+    });
+
+    const exportFavoriteButton = host.querySelector(
+      '.doc-assistant-keyinfo__action-row[data-action-key="export-current"] .doc-assistant-keyinfo__action-favorite-btn'
+    ) as HTMLButtonElement | null;
+    expect(exportFavoriteButton).toBeTruthy();
+    exportFavoriteButton!.click();
+    expect(onDocActionFavoriteToggle).toHaveBeenCalledWith("export-current", true);
+
+    const favoriteRows = host.querySelectorAll(
+      '.doc-assistant-keyinfo__action-row[data-action-key="insert-backlinks"][data-favorite-copy="true"]'
+    );
+    expect(favoriteRows.length).toBe(1);
+    const favoriteCopyUnstarButton = favoriteRows[0]?.querySelector(
+      ".doc-assistant-keyinfo__action-favorite-btn"
+    ) as HTMLButtonElement | null;
+    expect(favoriteCopyUnstarButton).toBeTruthy();
+    favoriteCopyUnstarButton!.click();
+    expect(onDocActionFavoriteToggle).toHaveBeenCalledWith("insert-backlinks", false);
+
+    dock.destroy();
+    host.remove();
+  });
+
+  test("supports collapsing and expanding all doc action groups with default expanded", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+      onDocActionClick: () => {},
+    });
+
+    dock.setState({
+      favoriteActionKeys: ["insert-backlinks"],
+      docActions: [
+        {
+          key: "export-current",
+          label: "仅导出当前文档",
+          icon: "iconDownload",
+          group: "export",
+          groupLabel: "导出",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+        {
+          key: "insert-backlinks",
+          label: "插入反链文档列表（去重）",
+          icon: "iconList",
+          group: "insert",
+          groupLabel: "插入",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+      ],
+    });
+
+    const countRows = () =>
+      host.querySelectorAll(".doc-assistant-keyinfo__action-row").length;
+    const findToggle = (groupKey: string) =>
+      host.querySelector(
+        `.doc-assistant-keyinfo__action-separator[data-group-key="${groupKey}"] .doc-assistant-keyinfo__action-separator-toggle`
+      ) as HTMLButtonElement | null;
+
+    expect(countRows()).toBe(3);
+
+    const favoriteToggle = findToggle("__favorite__");
+    const exportToggle = findToggle("export");
+    expect(favoriteToggle).toBeTruthy();
+    expect(exportToggle).toBeTruthy();
+    expect(favoriteToggle!.getAttribute("aria-expanded")).toBe("true");
+    expect(exportToggle!.getAttribute("aria-expanded")).toBe("true");
+
+    favoriteToggle!.click();
+    expect(countRows()).toBe(2);
+    expect(
+      findToggle("__favorite__")!.getAttribute("aria-expanded")
+    ).toBe("false");
+
+    exportToggle!.click();
+    expect(countRows()).toBe(1);
+    expect(findToggle("export")!.getAttribute("aria-expanded")).toBe("false");
+
+    findToggle("export")!.click();
+    expect(countRows()).toBe(2);
+    expect(findToggle("export")!.getAttribute("aria-expanded")).toBe("true");
+
+    dock.destroy();
+    host.remove();
+  });
+
+  test("reorders favorite actions by drag and drop", () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const onDocFavoriteActionReorder = vi.fn();
+    const dock = createKeyInfoDock(host, {
+      onExport: () => {},
+      onDocActionClick: () => {},
+      onDocFavoriteActionReorder,
+    });
+
+    dock.setState({
+      favoriteActionKeys: ["export-current", "insert-backlinks"],
+      docActions: [
+        {
+          key: "export-current",
+          label: "仅导出当前文档",
+          icon: "iconDownload",
+          group: "export",
+          groupLabel: "导出",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+        {
+          key: "insert-backlinks",
+          label: "插入反链文档列表（去重）",
+          icon: "iconList",
+          group: "insert",
+          groupLabel: "插入",
+          disabled: false,
+          menuRegistered: true,
+          menuToggleDisabled: false,
+        },
+      ],
+    });
+
+    const favoriteRows = host.querySelectorAll(
+      '.doc-assistant-keyinfo__action-row[data-favorite-copy="true"]'
+    );
+    expect(favoriteRows.length).toBe(2);
+
+    favoriteRows[0].dispatchEvent(
+      new Event("dragstart", { bubbles: true, cancelable: true })
+    );
+    favoriteRows[1].dispatchEvent(
+      new Event("drop", { bubbles: true, cancelable: true })
+    );
+
+    expect(onDocFavoriteActionReorder).toHaveBeenCalledWith([
+      "insert-backlinks",
+      "export-current",
+    ]);
+
+    dock.destroy();
+    host.remove();
+  });
 });

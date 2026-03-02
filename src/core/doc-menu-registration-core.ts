@@ -6,6 +6,7 @@ export type DocMenuRegistrationStorageV1 = {
   version: 1;
   actionEnabled: Partial<Record<ActionKey, boolean>>;
   actionOrder?: ActionKey[];
+  favoriteActionKeys?: ActionKey[];
 };
 
 export function buildDefaultDocMenuRegistration(
@@ -110,6 +111,72 @@ export function normalizeDocActionOrder(
     normalized.push(key);
   }
   return normalized;
+}
+
+export function normalizeDocFavoriteActionKeys(
+  raw: unknown,
+  actions: Pick<ActionConfig, "key">[]
+): ActionKey[] {
+  if (!raw || typeof raw !== "object") {
+    return [];
+  }
+  const source = (raw as { favoriteActionKeys?: unknown }).favoriteActionKeys;
+  if (!Array.isArray(source)) {
+    return [];
+  }
+  const allowed = new Set<ActionKey>(actions.map((action) => action.key));
+  const used = new Set<ActionKey>();
+  const normalized: ActionKey[] = [];
+  for (const item of source) {
+    const key = typeof item === "string" ? (item as ActionKey) : null;
+    if (!key || !allowed.has(key) || used.has(key)) {
+      continue;
+    }
+    used.add(key);
+    normalized.push(key);
+  }
+  return normalized;
+}
+
+export function setDocFavoriteAction(
+  state: ActionKey[],
+  key: ActionKey,
+  favorited: boolean
+): ActionKey[] {
+  const exists = state.includes(key);
+  if (favorited) {
+    if (exists) {
+      return state;
+    }
+    return [...state, key];
+  }
+  if (!exists) {
+    return state;
+  }
+  return state.filter((item) => item !== key);
+}
+
+export function reorderDocFavoriteActions(
+  current: ActionKey[],
+  nextOrder: ActionKey[]
+): ActionKey[] {
+  const allowed = new Set<ActionKey>(current);
+  const used = new Set<ActionKey>();
+  const reordered: ActionKey[] = [];
+  for (const key of nextOrder) {
+    if (!allowed.has(key) || used.has(key)) {
+      continue;
+    }
+    used.add(key);
+    reordered.push(key);
+  }
+  for (const key of current) {
+    if (used.has(key)) {
+      continue;
+    }
+    reordered.push(key);
+  }
+  return reordered;
 }
 
 export function sortActionsByOrder<T extends Pick<ActionConfig, "key">>(

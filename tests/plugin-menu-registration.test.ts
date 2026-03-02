@@ -154,6 +154,55 @@ describe("plugin menu registration", () => {
     );
   });
 
+  test("restores favorite actions from plugin data", async () => {
+    const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
+    const plugin = new DocLinkToolkitPlugin() as any;
+    await plugin.saveData("doc-menu-registration", {
+      version: 1,
+      actionEnabled: {},
+      favoriteActionKeys: ["insert-backlinks", "invalid-key"],
+    });
+    await plugin.onload();
+
+    expect(plugin.docFavoriteActionKeys).toEqual(["insert-backlinks"]);
+  });
+
+  test("persists favorite action changes", async () => {
+    const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
+    const plugin = new DocLinkToolkitPlugin() as any;
+    const saveSpy = vi.spyOn(plugin, "saveData");
+    await plugin.onload();
+
+    await plugin.setDocActionFavorite("insert-backlinks", true);
+
+    expect(saveSpy).toHaveBeenCalledWith(
+      "doc-menu-registration",
+      expect.objectContaining({
+        version: 1,
+        favoriteActionKeys: expect.arrayContaining(["insert-backlinks"]),
+      })
+    );
+  });
+
+  test("persists favorite action order changes", async () => {
+    const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
+    const plugin = new DocLinkToolkitPlugin() as any;
+    const saveSpy = vi.spyOn(plugin, "saveData");
+    await plugin.onload();
+    await plugin.setDocActionFavorite("export-current", true);
+    await plugin.setDocActionFavorite("insert-backlinks", true);
+
+    await plugin.setDocFavoriteActionOrder(["insert-backlinks", "export-current"]);
+
+    expect(saveSpy).toHaveBeenCalledWith(
+      "doc-menu-registration",
+      expect.objectContaining({
+        version: 1,
+        favoriteActionKeys: ["insert-backlinks", "export-current"],
+      })
+    );
+  });
+
   test("unbinds lifecycle event listeners on unload", async () => {
     const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
     const plugin = new DocLinkToolkitPlugin() as any;

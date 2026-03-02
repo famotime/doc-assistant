@@ -23,6 +23,9 @@ type KeyInfoControllerDeps = {
   setSingleDocMenuRegistration: (key: ActionKey, enabled: boolean) => Promise<void> | void;
   setDocActionOrder: (order: ActionKey[]) => Promise<void> | void;
   resetDocActionOrder: () => Promise<void> | void;
+  getDocFavoriteActionKeys: () => ActionKey[];
+  setDocActionFavorite: (key: ActionKey, favorited: boolean) => Promise<void> | void;
+  setDocFavoriteActionOrder: (order: ActionKey[]) => Promise<void> | void;
 };
 
 export class KeyInfoController {
@@ -83,6 +86,18 @@ export class KeyInfoController {
           onDocActionOrderReset: () => {
             void this.deps.resetDocActionOrder();
           },
+          onDocActionFavoriteToggle: (actionKey, favorited) => {
+            if (!isActionKey(actionKey)) {
+              return;
+            }
+            void this.deps.setDocActionFavorite(actionKey, favorited);
+          },
+          onDocFavoriteActionReorder: (order) => {
+            const normalized = order.filter((key): key is ActionKey =>
+              isActionKey(key)
+            );
+            void this.deps.setDocFavoriteActionOrder(normalized);
+          },
         });
         this.syncDocActions();
         const active = getActiveEditor()?.protyle as ProtyleLike | undefined;
@@ -114,6 +129,7 @@ export class KeyInfoController {
         this.deps.isMobile(),
         registration
       ),
+      favoriteActionKeys: this.deps.getDocFavoriteActionKeys(),
     });
   }
 

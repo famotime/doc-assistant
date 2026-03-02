@@ -387,11 +387,47 @@
   padding: 0 6px;
 }
 
+.doc-assistant-keyinfo__action-separator-toggle {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--doc-assistant-accent-strong) 26%, var(--b3-border-color));
+  background: color-mix(in srgb, var(--b3-theme-surface) 88%, #dbf1e3 12%);
+  padding: 1px 8px 1px 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  min-height: 22px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.doc-assistant-keyinfo__action-separator-toggle:hover {
+  border-color: color-mix(in srgb, var(--doc-assistant-accent-strong) 45%, var(--b3-border-color));
+  background: color-mix(in srgb, var(--b3-theme-surface) 82%, #d1eddc 18%);
+}
+
+.doc-assistant-keyinfo__action-separator-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--doc-assistant-accent) 40%, transparent);
+}
+
+.doc-assistant-keyinfo__action-separator-toggle-icon {
+  color: color-mix(in srgb, var(--doc-assistant-accent-strong) 88%, var(--b3-theme-on-surface));
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .doc-assistant-keyinfo__action-row {
   display: flex;
   align-items: center;
   gap: 8px;
   position: relative;
+}
+
+.doc-assistant-keyinfo__action-favorite-empty {
+  font-size: 12px;
+  padding: 2px 4px 6px;
 }
 
 .doc-assistant-keyinfo__action-drag-handle {
@@ -403,6 +439,25 @@
   user-select: none;
   cursor: grab;
   padding: 0 2px;
+}
+
+.doc-assistant-keyinfo__action-favorite-btn {
+  flex: 0 0 auto;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--b3-border-color) 78%, transparent);
+  background: color-mix(in srgb, var(--b3-theme-surface) 88%, #e2f5eb 12%);
+  color: color-mix(in srgb, var(--b3-theme-on-surface-light) 85%, #567e66 15%);
+  line-height: 1;
+  font-size: 14px;
+  padding: 0;
+}
+
+.doc-assistant-keyinfo__action-favorite-btn.is-active {
+  border-color: color-mix(in srgb, #d6a70f 62%, var(--b3-border-color));
+  background: color-mix(in srgb, #ffe9a4 28%, var(--b3-theme-surface));
+  color: color-mix(in srgb, #c78200 84%, #8f5f00 16%);
 }
 
 .doc-assistant-keyinfo__action-row.is-dragging {

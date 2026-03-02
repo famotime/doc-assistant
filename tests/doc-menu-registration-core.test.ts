@@ -5,9 +5,12 @@ import {
   buildDefaultDocMenuRegistration,
   filterDocMenuActions,
   isAllDocMenuRegistrationEnabled,
+  normalizeDocFavoriteActionKeys,
   normalizeDocActionOrder,
   normalizeDocMenuRegistration,
+  reorderDocFavoriteActions,
   setAllDocMenuRegistration,
+  setDocFavoriteAction,
   setSingleDocMenuRegistration,
   sortActionsByOrder,
 } from "@/core/doc-menu-registration-core";
@@ -90,5 +93,44 @@ describe("doc-menu-registration-core", () => {
     const sorted = sortActionsByOrder(ACTIONS, customOrder);
     expect(sorted[0]?.key).toBe("insert-backlinks");
     expect(sorted[1]?.key).toBe("export-current");
+  });
+
+  test("normalizes favorite action keys and removes invalid values", () => {
+    const favorites = normalizeDocFavoriteActionKeys(
+      {
+        favoriteActionKeys: [
+          "insert-backlinks",
+          "invalid-key",
+          "export-current",
+          "insert-backlinks",
+        ],
+      },
+      ACTIONS
+    );
+
+    expect(favorites).toEqual(["insert-backlinks", "export-current"]);
+  });
+
+  test("sets and unsets single favorite action", () => {
+    const added = setDocFavoriteAction([], "insert-backlinks", true);
+    expect(added).toEqual(["insert-backlinks"]);
+
+    const stable = setDocFavoriteAction(added, "insert-backlinks", true);
+    expect(stable).toEqual(["insert-backlinks"]);
+
+    const removed = setDocFavoriteAction(stable, "insert-backlinks", false);
+    expect(removed).toEqual([]);
+  });
+
+  test("reorders favorite actions with stable fallback", () => {
+    const reordered = reorderDocFavoriteActions(
+      ["export-current", "insert-backlinks", "trim-trailing-whitespace"],
+      ["insert-backlinks", "export-current"]
+    );
+    expect(reordered).toEqual([
+      "insert-backlinks",
+      "export-current",
+      "trim-trailing-whitespace",
+    ]);
   });
 });

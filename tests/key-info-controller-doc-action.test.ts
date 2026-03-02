@@ -51,6 +51,9 @@ describe("key-info-controller doc actions", () => {
       setSingleDocMenuRegistration: () => {},
       setDocActionOrder: () => {},
       resetDocActionOrder: () => {},
+      getDocFavoriteActionKeys: () => [],
+      setDocActionFavorite: () => {},
+      setDocFavoriteActionOrder: () => {},
     });
 
     let dockConfig: any;
@@ -99,6 +102,9 @@ describe("key-info-controller doc actions", () => {
       setSingleDocMenuRegistration: () => {},
       setDocActionOrder: () => {},
       resetDocActionOrder,
+      getDocFavoriteActionKeys: () => [],
+      setDocActionFavorite: () => {},
+      setDocFavoriteActionOrder: () => {},
     });
 
     let dockConfig: any;
@@ -116,6 +122,124 @@ describe("key-info-controller doc actions", () => {
 
     resetButton!.click();
     expect(resetDocActionOrder).toHaveBeenCalledTimes(1);
+
+    await Promise.resolve();
+    controller.destroy();
+    host.remove();
+  });
+
+  test("calls setDocActionFavorite when clicking favorite button", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const setDocActionFavorite = vi.fn().mockResolvedValue(undefined);
+    const action: ActionConfig = {
+      key: "insert-backlinks",
+      commandText: "插入反链文档列表（去重）",
+      menuText: "插入反链文档列表（去重）",
+      group: "insert",
+      icon: "iconList",
+    };
+    const controller = new KeyInfoController({
+      isMobile: () => false,
+      getCurrentDocId: () => "doc-1",
+      getCurrentProtyle: () => undefined,
+      resolveDocId: (explicitId?: string) => explicitId || "doc-1",
+      runAction: vi.fn().mockResolvedValue(undefined),
+      actions: () => [action],
+      getDocMenuRegistrationState: () => buildDefaultDocMenuRegistration([action]),
+      setAllDocMenuRegistration: () => {},
+      setSingleDocMenuRegistration: () => {},
+      setDocActionOrder: () => {},
+      resetDocActionOrder: () => {},
+      getDocFavoriteActionKeys: () => [],
+      setDocActionFavorite,
+      setDocFavoriteActionOrder: () => {},
+    });
+
+    let dockConfig: any;
+    controller.registerDock({
+      addDock: (config: unknown) => {
+        dockConfig = config;
+      },
+    });
+    dockConfig.init({ element: host });
+
+    const favoriteButton = host.querySelector(
+      '.doc-assistant-keyinfo__action-row[data-action-key="insert-backlinks"] .doc-assistant-keyinfo__action-favorite-btn'
+    ) as HTMLButtonElement | null;
+    expect(favoriteButton).toBeTruthy();
+
+    favoriteButton!.click();
+    expect(setDocActionFavorite).toHaveBeenCalledTimes(1);
+    expect(setDocActionFavorite).toHaveBeenCalledWith("insert-backlinks", true);
+
+    await Promise.resolve();
+    controller.destroy();
+    host.remove();
+  });
+
+  test("calls setDocFavoriteActionOrder when reordering favorite actions", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    const setDocFavoriteActionOrder = vi.fn().mockResolvedValue(undefined);
+    const actions: ActionConfig[] = [
+      {
+        key: "export-current",
+        commandText: "仅导出当前文档",
+        menuText: "仅导出当前文档",
+        group: "export",
+        icon: "iconDownload",
+      },
+      {
+        key: "insert-backlinks",
+        commandText: "插入反链文档列表（去重）",
+        menuText: "插入反链文档列表（去重）",
+        group: "insert",
+        icon: "iconList",
+      },
+    ];
+    const controller = new KeyInfoController({
+      isMobile: () => false,
+      getCurrentDocId: () => "doc-1",
+      getCurrentProtyle: () => undefined,
+      resolveDocId: (explicitId?: string) => explicitId || "doc-1",
+      runAction: vi.fn().mockResolvedValue(undefined),
+      actions: () => actions,
+      getDocMenuRegistrationState: () => buildDefaultDocMenuRegistration(actions),
+      setAllDocMenuRegistration: () => {},
+      setSingleDocMenuRegistration: () => {},
+      setDocActionOrder: () => {},
+      resetDocActionOrder: () => {},
+      getDocFavoriteActionKeys: () => ["export-current", "insert-backlinks"],
+      setDocActionFavorite: () => {},
+      setDocFavoriteActionOrder,
+    });
+
+    let dockConfig: any;
+    controller.registerDock({
+      addDock: (config: unknown) => {
+        dockConfig = config;
+      },
+    });
+    dockConfig.init({ element: host });
+
+    const favoriteRows = host.querySelectorAll(
+      '.doc-assistant-keyinfo__action-row[data-favorite-copy="true"]'
+    );
+    expect(favoriteRows.length).toBe(2);
+    favoriteRows[0].dispatchEvent(
+      new Event("dragstart", { bubbles: true, cancelable: true })
+    );
+    favoriteRows[1].dispatchEvent(
+      new Event("drop", { bubbles: true, cancelable: true })
+    );
+
+    expect(setDocFavoriteActionOrder).toHaveBeenCalledWith([
+      "insert-backlinks",
+      "export-current",
+    ]);
 
     await Promise.resolve();
     controller.destroy();

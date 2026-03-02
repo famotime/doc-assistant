@@ -24,6 +24,7 @@ export type KeyInfoDockState = {
   activeTab: DockTabKey;
   docMenuRegisterAll: boolean;
   docActions: DockDocAction[];
+  favoriteActionKeys: string[];
   scrollContextKey: string;
 };
 
@@ -121,6 +122,8 @@ export function createKeyInfoDock(
     onDocActionMenuToggle?: (actionKey: string, enabled: boolean) => void;
     onDocActionReorder?: (order: string[]) => void;
     onDocActionOrderReset?: () => void;
+    onDocActionFavoriteToggle?: (actionKey: string, favorited: boolean) => void;
+    onDocFavoriteActionReorder?: (order: string[]) => void;
   }
 ): KeyInfoDockHandle {
   const state: KeyInfoDockState = {
@@ -133,6 +136,7 @@ export function createKeyInfoDock(
     activeTab: "key-info",
     docMenuRegisterAll: true,
     docActions: [],
+    favoriteActionKeys: [],
     scrollContextKey: "",
   };
 
@@ -442,6 +446,12 @@ export function createKeyInfoDock(
         setState({ docActions: next });
         callbacks.onDocActionReorder?.(next.map((action) => action.key));
       },
+      favoriteActionKeys: state.favoriteActionKeys,
+      onDocActionFavoriteToggle: callbacks.onDocActionFavoriteToggle,
+      onFavoriteActionsReorder: (next) => {
+        setState({ favoriteActionKeys: next });
+        callbacks.onDocFavoriteActionReorder?.(next);
+      },
       selectionPreservedActionKeys: MOUSEDOWN_SELECTION_PRESERVED_ACTION_KEYS,
     });
   };
@@ -620,6 +630,7 @@ export function createKeyInfoDock(
     const prevTab = state.activeTab;
     const prevDocMenuRegisterAll = state.docMenuRegisterAll;
     const prevDocActions = state.docActions;
+    const prevFavoriteActionKeys = state.favoriteActionKeys;
     const prevScrollContextKey = state.scrollContextKey;
     Object.assign(state, next);
     scrollState = updateKeyInfoListScrollContext(scrollState, state.scrollContextKey);
@@ -633,7 +644,10 @@ export function createKeyInfoDock(
     if (prevDocMenuRegisterAll !== state.docMenuRegisterAll) {
       renderDocMenuToggle();
     }
-    if (prevDocActions !== state.docActions) {
+    if (
+      prevDocActions !== state.docActions ||
+      prevFavoriteActionKeys !== state.favoriteActionKeys
+    ) {
       renderDocActions();
     }
     const shouldRenderList =

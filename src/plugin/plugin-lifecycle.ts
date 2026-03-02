@@ -12,8 +12,11 @@ import {
   DocMenuRegistrationStorageV1,
   filterDocMenuActions,
   normalizeDocActionOrder,
+  normalizeDocFavoriteActionKeys,
   normalizeDocMenuRegistration,
+  reorderDocFavoriteActions,
   setAllDocMenuRegistration as setAllDocMenuRegistrationState,
+  setDocFavoriteAction as setDocFavoriteActionState,
   setSingleDocMenuRegistration as setSingleDocMenuRegistrationState,
   sortActionsByOrder,
 } from "@/core/doc-menu-registration-core";
@@ -39,6 +42,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
   private docMenuRegistrationState: DocMenuRegistrationState =
     buildDefaultDocMenuRegistration(ACTIONS);
   private docActionOrderState: ActionKey[] = buildDefaultDocActionOrder(ACTIONS);
+  private docFavoriteActionKeys: ActionKey[] = [];
 
   private readonly actionRunner = new ActionRunner({
     isMobile: () => this.isMobile,
@@ -63,6 +67,11 @@ export default class DocLinkToolkitPlugin extends Plugin {
       this.setSingleDocMenuRegistration(key, enabled),
     setDocActionOrder: (order) => this.setDocActionOrder(order),
     resetDocActionOrder: () => this.resetDocActionOrder(),
+    getDocFavoriteActionKeys: () => this.docFavoriteActionKeys,
+    setDocActionFavorite: (key, favorited) =>
+      this.setDocActionFavorite(key, favorited),
+    setDocFavoriteActionOrder: (order) =>
+      this.setDocFavoriteActionOrder(order),
   });
 
   private readonly onSwitchProtyle = (event: CustomEvent<{ protyle?: ProtyleLike }>) => {
@@ -200,9 +209,11 @@ export default class DocLinkToolkitPlugin extends Plugin {
       const raw = await this.loadData(this.docMenuRegistrationStorageName);
       this.docMenuRegistrationState = normalizeDocMenuRegistration(raw, ACTIONS);
       this.docActionOrderState = normalizeDocActionOrder(raw, ACTIONS);
+      this.docFavoriteActionKeys = normalizeDocFavoriteActionKeys(raw, ACTIONS);
     } catch (error: unknown) {
       this.docMenuRegistrationState = buildDefaultDocMenuRegistration(ACTIONS);
       this.docActionOrderState = buildDefaultDocActionOrder(ACTIONS);
+      this.docFavoriteActionKeys = [];
       const message = error instanceof Error ? error.message : String(error);
       showMessage(`读取菜单注册配置失败：${message}`, 5000, "error");
     }
@@ -213,6 +224,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
       version: 1,
       actionEnabled: this.docMenuRegistrationState,
       actionOrder: this.docActionOrderState,
+      favoriteActionKeys: this.docFavoriteActionKeys,
     };
     await this.saveData(this.docMenuRegistrationStorageName, payload);
   }
@@ -251,6 +263,25 @@ export default class DocLinkToolkitPlugin extends Plugin {
 
   async resetDocActionOrder() {
     this.docActionOrderState = buildDefaultDocActionOrder(ACTIONS);
+    await this.persistDocMenuRegistrationState();
+    this.keyInfoController.syncDocActions();
+  }
+
+  async setDocActionFavorite(key: ActionKey, favorited: boolean) {
+    this.docFavoriteActionKeys = setDocFavoriteActionState(
+      this.docFavoriteActionKeys,
+      key,
+      favorited
+    );
+    await this.persistDocMenuRegistrationState();
+    this.keyInfoController.syncDocActions();
+  }
+
+  async setDocFavoriteActionOrder(order: ActionKey[]) {
+    this.docFavoriteActionKeys = reorderDocFavoriteActions(
+      this.docFavoriteActionKeys,
+      order
+    );
     await this.persistDocMenuRegistrationState();
     this.keyInfoController.syncDocActions();
   }
