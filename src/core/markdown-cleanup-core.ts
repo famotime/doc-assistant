@@ -293,11 +293,25 @@ function stripTrailingInternetLinksInLine(
     return { line: "", removedCount: 0 };
   }
 
-  const markdownLinkPattern =
-    /[ \t]*\[[^\]\n]*\]\((https?:\/\/[^)\s]+(?:\s+["'][^"'\n]*["'])?)\)[ \t]*$/iu;
-  const autolinkPattern = /[ \t]*<https?:\/\/[^>\s]+>[ \t]*$/iu;
-  const bareLinkPattern = /[ \t]*https?:\/\/[^\s<>()]+[ \t]*$/iu;
-  const patterns = [markdownLinkPattern, autolinkPattern, bareLinkPattern];
+  const trailingPadding = "[\\p{Cf}\\p{Zs}\\t]*";
+  const httpTarget = "(https?:\\/\\/[^)\\s]+(?:\\s+[\"'][^\"'\\n]*[\"'])?)";
+  const wrappedMarkdownLinkPattern = new RegExp(
+    `${trailingPadding}\\[\\[[^\\]\\n]*\\]\\(${httpTarget}\\)\\]${trailingPadding}$`,
+    "iu"
+  );
+  const markdownLinkPattern = new RegExp(
+    `${trailingPadding}\\[[^\\]\\n]*\\]\\(${httpTarget}\\)${trailingPadding}$`,
+    "iu"
+  );
+  const autolinkPattern = new RegExp(
+    `${trailingPadding}<https?:\\/\\/[^>\\s]+>${trailingPadding}$`,
+    "iu"
+  );
+  const bareLinkPattern = new RegExp(
+    `${trailingPadding}https?:\\/\\/[^\\s<>()]+${trailingPadding}$`,
+    "iu"
+  );
+  const patterns = [wrappedMarkdownLinkPattern, markdownLinkPattern, autolinkPattern, bareLinkPattern];
 
   let next = line;
   let removedCount = 0;

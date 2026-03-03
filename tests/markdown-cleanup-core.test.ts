@@ -177,6 +177,28 @@ describe("markdown-cleanup-core", () => {
     });
   });
 
+  test("removes wrapped markdown internet links with surrounding spaces/zero-width chars", () => {
+    const input = [
+      `段落内容 \u200B [[name](https://www.notes.com/xxxxx)] \u200B`,
+      `| col1 | [[官网](https://example.com/path)] |`,
+      "保留思源链接 [Doc](siyuan://blocks/20260101101010-abcdef1)",
+    ].join("\n");
+
+    const result = cleanupAiOutputArtifactsInMarkdown(input);
+
+    expect(result).toEqual({
+      markdown: [
+        "段落内容",
+        "| col1 | |",
+        "保留思源链接 [Doc](siyuan://blocks/20260101101010-abcdef1)",
+      ].join("\n"),
+      removedSupCount: 0,
+      removedCaretCount: 0,
+      removedInternetLinkCount: 2,
+      removedCount: 2,
+    });
+  });
+
   test("keeps markdown unchanged when no ai artifact exists", () => {
     const input = [
       "正文 [文档](siyuan://blocks/20260101101010-abcdef1)",

@@ -362,10 +362,24 @@ describe("action-runner loading guard", () => {
         resolved: true,
       } as any,
     ]);
-    const runner = createRunner();
+    const askConfirm = vi.fn().mockResolvedValue(true);
+    const runner = new ActionRunner({
+      isMobile: () => false,
+      resolveDocId: () => "doc-1",
+      askConfirm,
+    } as any);
 
     await runner.runAction("clean-ai-output" as any);
 
+    expect(askConfirm).toHaveBeenCalledTimes(1);
+    expect(askConfirm).toHaveBeenCalledWith(
+      "确认清理AI输出内容",
+      expect.stringContaining("上标 1 处，^^ 1 处，互联网链接 2 处")
+    );
+    expect(askConfirm).toHaveBeenCalledWith(
+      "确认清理AI输出内容",
+      expect.stringContaining("预计将更新 2 个块")
+    );
     expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(2);
     expect(updateBlockMarkdownMock).toHaveBeenNthCalledWith(1, "a", "正文");
     expect(updateBlockMarkdownMock).toHaveBeenNthCalledWith(2, "b", "| col1 | |");
@@ -374,6 +388,29 @@ describe("action-runner loading guard", () => {
       5000,
       "info"
     );
+  });
+
+  test("does not clean ai output when confirmation is canceled", async () => {
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      {
+        id: "a",
+        type: "p",
+        markdown: "正文 <sup>1</sup> ^^ [外链](https://example.com/a)",
+        resolved: true,
+      } as any,
+    ]);
+    const askConfirm = vi.fn().mockResolvedValue(false);
+    const runner = new ActionRunner({
+      isMobile: () => false,
+      resolveDocId: () => "doc-1",
+      askConfirm,
+    } as any);
+
+    await runner.runAction("clean-ai-output" as any);
+
+    expect(askConfirm).toHaveBeenCalledTimes(1);
+    expect(updateBlockMarkdownMock).not.toHaveBeenCalled();
+    expect(showMessageMock).not.toHaveBeenCalled();
   });
 
   test("marks invalid links and refs in current doc with strike and highlight", async () => {

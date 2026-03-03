@@ -63,6 +63,14 @@ type StyleFailureDetail = {
   reason: string;
 };
 
+type AiOutputCleanupPreview = {
+  cleanableBlockCount: number;
+  riskyPendingBlockCount: number;
+  removedSupCount: number;
+  removedCaretCount: number;
+  removedInternetLinkCount: number;
+};
+
 const forwardLinksLogger = createDocAssistantLogger("ForwardLinks");
 const styleLogger = createDocAssistantLogger("Style");
 const trailingWhitespaceLogger = createDocAssistantLogger("TrailingWhitespace");
@@ -636,6 +644,29 @@ export class ActionRunner {
       return;
     }
 
+    const preview = this.previewAiOutputCleanup(blocks);
+    if (!preview.cleanableBlockCount) {
+      if (preview.riskyPendingBlockCount > 0) {
+        showMessage("检测到高风险块，未执行清理（可先移除复杂内联后重试）", 5000, "error");
+        return;
+      }
+      showMessage("未发现可清理的 AI 输出内容", 4000, "info");
+      return;
+    }
+
+    const confirmLines = [
+      `已找到待清理内容：上标 ${preview.removedSupCount} 处，^^ ${preview.removedCaretCount} 处，互联网链接 ${preview.removedInternetLinkCount} 处。`,
+      `预计将更新 ${preview.cleanableBlockCount} 个块，是否继续？`,
+    ];
+    if (preview.riskyPendingBlockCount > 0) {
+      confirmLines.push(`另有 ${preview.riskyPendingBlockCount} 个高风险块包含可清理内容，本次将跳过。`);
+    }
+    const ok = await this.askConfirmWithVisibleDialog("确认清理AI输出内容", confirmLines.join("\n"));
+    if (!ok) {
+      return;
+    }
+    this.deps.setBusy?.(true);
+
     let removedSupCount = 0;
     let removedCaretCount = 0;
     let removedInternetLinkCount = 0;
@@ -675,6 +706,40 @@ export class ActionRunner {
       return;
     }
     showMessage(summary, 5000, "info");
+  }
+
+  private previewAiOutputCleanup(
+    blocks: Array<{ id: string; markdown?: string }>
+  ): AiOutputCleanupPreview {
+    const preview: AiOutputCleanupPreview = {
+      cleanableBlockCount: 0,
+      riskyPendingBlockCount: 0,
+      removedSupCount: 0,
+      removedCaretCount: 0,
+      removedInternetLinkCount: 0,
+    };
+
+    for (const block of blocks) {
+      const source = block.markdown || "";
+      if (!source) {
+        continue;
+      }
+      const cleaned = cleanupAiOutputArtifactsInMarkdown(source);
+      const hasChanges = cleaned.removedCount > 0 && cleaned.markdown !== source;
+      if (!hasChanges) {
+        continue;
+      }
+      if (isHighRiskForMarkdownWrite(source)) {
+        preview.riskyPendingBlockCount += 1;
+        continue;
+      }
+      preview.cleanableBlockCount += 1;
+      preview.removedSupCount += cleaned.removedSupCount;
+      preview.removedCaretCount += cleaned.removedCaretCount;
+      preview.removedInternetLinkCount += cleaned.removedInternetLinkCount;
+    }
+
+    return preview;
   }
 
   private async handleToggleLinksRefs(docId: string) {
