@@ -6,6 +6,7 @@ import {
   dedupeDocRefs,
   extractSiyuanBlockIdsFromMarkdown,
   filterDocRefsByMarkdown,
+  markInvalidSiyuanLinkRefsInMarkdown,
 } from "@/core/link-core";
 
 describe("link-core", () => {
@@ -133,6 +134,48 @@ describe("link-core", () => {
       ].join("\n"),
       mode: "ref-to-link",
       convertedCount: 3,
+    });
+  });
+
+  test("marks invalid siyuan links and refs with strike and highlight wrappers", () => {
+    const markdown = [
+      "- [Valid](siyuan://blocks/20260101101010-abcdef1)",
+      "- [Invalid](siyuan://blocks/20260202121212-bcdefg2)",
+      "- ((20260303131313-cdefgh3))",
+      '- [[20260404141414-defghi4 "Alias D"]]',
+    ].join("\n");
+
+    const result = markInvalidSiyuanLinkRefsInMarkdown(
+      markdown,
+      new Set(["20260202121212-bcdefg2", "20260303131313-cdefgh3"])
+    );
+
+    expect(result).toEqual({
+      markdown: [
+        "- [Valid](siyuan://blocks/20260101101010-abcdef1)",
+        "- ~~==[Invalid](siyuan://blocks/20260202121212-bcdefg2)==~~",
+        "- ~~==((20260303131313-cdefgh3))==~~",
+        '- [[20260404141414-defghi4 "Alias D"]]',
+      ].join("\n"),
+      markedCount: 2,
+    });
+  });
+
+  test("does not double-wrap when invalid refs are already marked", () => {
+    const markdown = [
+      "- ~~==[Invalid](siyuan://blocks/20260202121212-bcdefg2)==~~",
+      "- ~~==((20260303131313-cdefgh3))==~~",
+      "- [Valid](siyuan://blocks/20260101101010-abcdef1)",
+    ].join("\n");
+
+    const result = markInvalidSiyuanLinkRefsInMarkdown(
+      markdown,
+      new Set(["20260202121212-bcdefg2", "20260303131313-cdefgh3"])
+    );
+
+    expect(result).toEqual({
+      markdown,
+      markedCount: 0,
     });
   });
 });

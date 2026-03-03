@@ -15,6 +15,7 @@ export type ActionKey =
   | "convert-images-to-png"
   | "remove-doc-images"
   | "toggle-links-refs"
+  | "mark-invalid-links-refs"
   | "insert-blank-before-headings"
   | "delete-from-current-to-end"
   | "bold-selected-blocks"
@@ -95,6 +96,13 @@ export const ACTIONS: ActionConfig[] = [
     menuText: "标题前增加空段落",
     group: "insert",
     icon: "iconList",
+  },
+  {
+    key: "mark-invalid-links-refs",
+    commandText: "标示无效链接/引用",
+    menuText: "标示无效链接/引用",
+    group: "insert",
+    icon: "iconLink",
   },
   {
     key: "toggle-links-refs",

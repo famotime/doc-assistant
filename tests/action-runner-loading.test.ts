@@ -96,6 +96,7 @@ import {
   getBlockDOMs,
   getBlockKramdowns,
   getChildBlocksByParentId,
+  getDocMetaByID,
   insertBlockBefore,
   updateBlockDom,
   updateBlockMarkdown,
@@ -110,6 +111,7 @@ const getBlockDOMMock = vi.mocked(getBlockDOM);
 const getBlockDOMsMock = vi.mocked(getBlockDOMs);
 const getBlockKramdownsMock = vi.mocked(getBlockKramdowns);
 const getChildBlocksByParentIdMock = vi.mocked(getChildBlocksByParentId);
+const getDocMetaByIDMock = vi.mocked(getDocMetaByID);
 const getBacklinkDocsMock = vi.mocked(getBacklinkDocs);
 const getChildDocsMock = vi.mocked(getChildDocs);
 const getForwardLinkedDocIdsMock = vi.mocked(getForwardLinkedDocIds);
@@ -337,6 +339,60 @@ describe("action-runner loading guard", () => {
       "- [20260202121212-bcdefg2](siyuan://blocks/20260202121212-bcdefg2)"
     );
     expect(showMessageMock).toHaveBeenCalledWith("已将 2 处引用转换为文档链接，共更新 2 个块", 5000, "info");
+  });
+
+  test("marks invalid links and refs in current doc with strike and highlight", async () => {
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      {
+        id: "a",
+        type: "p",
+        markdown:
+          "- [Invalid Link](siyuan://blocks/20260101101010-abcdef1)\n- [Valid Link](siyuan://blocks/20260202121212-bcdefg2)",
+        resolved: true,
+      } as any,
+      {
+        id: "b",
+        type: "p",
+        markdown:
+          "- ((20260303131313-cdefgh3))\n- [[20260404141414-defghi4]]",
+        resolved: true,
+      } as any,
+    ]);
+    getDocMetaByIDMock.mockImplementation(async (id: string) => {
+      if (id === "20260202121212-bcdefg2") {
+        return {
+          id,
+          parentId: "parent",
+          rootId: id,
+          box: "notebook",
+          path: "/x.sy",
+          hPath: "/Valid",
+          updated: "2026-01-01",
+          title: "Valid",
+        } as any;
+      }
+      return null;
+    });
+    const runner = createRunner();
+
+    await runner.runAction("mark-invalid-links-refs" as any);
+
+    expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(2);
+    expect(updateBlockMarkdownMock).toHaveBeenNthCalledWith(
+      1,
+      "a",
+      "- ~~==[Invalid Link](siyuan://blocks/20260101101010-abcdef1)==~~\n- [Valid Link](siyuan://blocks/20260202121212-bcdefg2)"
+    );
+    expect(updateBlockMarkdownMock).toHaveBeenNthCalledWith(
+      2,
+      "b",
+      "- ~~==((20260303131313-cdefgh3))==~~\n- ~~==[[20260404141414-defghi4]]==~~"
+    );
+    expect(showMessageMock).toHaveBeenCalledWith(
+      "已标示 3 处无效链接/引用，共更新 2 个块",
+      5000,
+      "info"
+    );
   });
 
   test("converts local images to webp for current doc", async () => {

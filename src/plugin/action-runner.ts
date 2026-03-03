@@ -1,5 +1,9 @@
 import { showMessage } from "siyuan";
-import { convertSiyuanLinksAndRefsInMarkdown } from "@/core/link-core";
+import {
+  convertSiyuanLinksAndRefsInMarkdown,
+  extractSiyuanBlockIdsFromMarkdown,
+  markInvalidSiyuanLinkRefsInMarkdown,
+} from "@/core/link-core";
 import {
   findDeleteFromCurrentBlockIds,
   findExtraBlankParagraphIds,
@@ -116,6 +120,7 @@ export class ActionRunner {
     "convert-images-to-png": async (docId) => this.handleConvertImagesToPng(docId),
     "remove-doc-images": async (docId) => this.handleRemoveDocImages(docId),
     "toggle-links-refs": async (docId) => this.handleToggleLinksRefs(docId),
+    "mark-invalid-links-refs": async (docId) => this.handleMarkInvalidLinksRefs(docId),
     "insert-blank-before-headings": async (docId) => this.handleInsertBlankBeforeHeadings(docId),
     "delete-from-current-to-end": async (docId, protyle) =>
       this.handleDeleteFromCurrentToEnd(docId, protyle),
@@ -540,6 +545,94 @@ export class ActionRunner {
       return;
     }
     showMessage(`已为 ${result.insertCount} 个标题补充空段落`, 5000, "info");
+  }
+
+  private async handleMarkInvalidLinksRefs(docId: string) {
+    const blocks = await getChildBlocksByParentId(docId);
+    if (!blocks.length) {
+      showMessage("当前文档没有可处理的段落", 4000, "info");
+      return;
+    }
+
+    const candidateIds = new Set<string>();
+    for (const block of blocks) {
+      const source = block.markdown || "";
+      if (!source) {
+        continue;
+      }
+      const ids = extractSiyuanBlockIdsFromMarkdown(source);
+      for (const id of ids) {
+        candidateIds.add(id);
+      }
+    }
+    if (!candidateIds.size) {
+      showMessage("当前文档未发现思源文档链接或引用", 4000, "info");
+      return;
+    }
+
+    const invalidIds = new Set<string>();
+    await Promise.all(
+      [...candidateIds].map(async (id) => {
+        try {
+          const meta = await getDocMetaByID(id);
+          if (!meta) {
+            invalidIds.add(id);
+          }
+        } catch {
+          invalidIds.add(id);
+        }
+      })
+    );
+
+    if (!invalidIds.size) {
+      showMessage("当前文档未发现无效链接或引用", 4000, "info");
+      return;
+    }
+
+    let markedCount = 0;
+    let updatedBlockCount = 0;
+    let failedBlockCount = 0;
+    const skippedRiskyIds: string[] = [];
+    for (const block of blocks) {
+      const source = block.markdown || "";
+      if (!source) {
+        continue;
+      }
+      if (isHighRiskForMarkdownWrite(source)) {
+        skippedRiskyIds.push(block.id);
+        continue;
+      }
+      const marked = markInvalidSiyuanLinkRefsInMarkdown(source, invalidIds);
+      if (marked.markedCount <= 0 || marked.markdown === source) {
+        continue;
+      }
+      try {
+        await updateBlockMarkdown(block.id, marked.markdown);
+        updatedBlockCount += 1;
+        markedCount += marked.markedCount;
+      } catch {
+        failedBlockCount += 1;
+      }
+    }
+
+    if (!updatedBlockCount) {
+      if (skippedRiskyIds.length) {
+        showMessage("检测到高风险块，未执行标示（可先移除复杂内联后重试）", 5000, "error");
+        return;
+      }
+      showMessage("当前文档未发现无效链接或引用", 4000, "info");
+      return;
+    }
+
+    if (failedBlockCount > 0) {
+      showMessage(
+        `已标示 ${markedCount} 处无效链接/引用，共更新 ${updatedBlockCount} 个块，失败 ${failedBlockCount} 个块`,
+        7000,
+        "error"
+      );
+      return;
+    }
+    showMessage(`已标示 ${markedCount} 处无效链接/引用，共更新 ${updatedBlockCount} 个块`, 5000, "info");
   }
 
   private async handleToggleLinksRefs(docId: string) {

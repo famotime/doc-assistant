@@ -17,6 +17,7 @@ describe("plugin actions", () => {
     expect(isActionKey("remove-doc-images")).toBe(true);
     expect(isActionKey("trim-trailing-whitespace")).toBe(true);
     expect(isActionKey("insert-blank-before-headings")).toBe(true);
+    expect(isActionKey("mark-invalid-links-refs")).toBe(true);
     expect(isActionKey("delete-from-current-to-end")).toBe(true);
     expect(isActionKey("invalid-key")).toBe(false);
   });

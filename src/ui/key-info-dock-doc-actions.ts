@@ -36,6 +36,7 @@ const ACTION_ICON_TEXT: Record<string, string> = {
   "insert-backlinks": "反",
   "insert-child-docs": "子",
   "insert-blank-before-headings": "空",
+  "mark-invalid-links-refs": "标",
   "convert-images-to-webp": "图",
   "convert-images-to-png": "图",
   "remove-doc-images": "删",

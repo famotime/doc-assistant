@@ -29,6 +29,11 @@ export type LinkRefConversionResult = {
   convertedCount: number;
 };
 
+export type InvalidLinkRefMarkResult = {
+  markdown: string;
+  markedCount: number;
+};
+
 function countMatches(markdown: string, pattern: RegExp): number {
   const source = new RegExp(
     pattern.source,
@@ -42,6 +47,51 @@ function countMatches(markdown: string, pattern: RegExp): number {
     match = source.exec(markdown);
   }
   return count;
+}
+
+function isAlreadyMarked(
+  fullSource: string,
+  start: number,
+  end: number
+): boolean {
+  const before = fullSource.slice(Math.max(0, start - 4), start);
+  const after = fullSource.slice(end, end + 4);
+  if (before === "~~==" && after === "==~~") {
+    return true;
+  }
+  return before === "==~~" && after === "~~==";
+}
+
+function markInvalidWithPattern(
+  markdown: string,
+  pattern: RegExp,
+  invalidIds: ReadonlySet<string>,
+  idGroupIndex: number
+): InvalidLinkRefMarkResult {
+  const sourcePattern = new RegExp(
+    pattern.source,
+    pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`
+  );
+  let markedCount = 0;
+  const next = markdown.replace(sourcePattern, (...args: unknown[]) => {
+    const matched = String(args[0] || "");
+    const id = String(args[idGroupIndex] || "").trim();
+    const offset = Number(args[args.length - 2] || 0);
+    const fullSource = String(args[args.length - 1] || "");
+    if (!id || !invalidIds.has(id)) {
+      return matched;
+    }
+    const end = offset + matched.length;
+    if (isAlreadyMarked(fullSource, offset, end)) {
+      return matched;
+    }
+    markedCount += 1;
+    return `~~==${matched}==~~`;
+  });
+  return {
+    markdown: next,
+    markedCount,
+  };
 }
 
 function escapeRefAlias(value: string): string {
@@ -152,6 +202,38 @@ export function convertSiyuanLinksAndRefsInMarkdown(
     markdown: source,
     mode: "none",
     convertedCount: 0,
+  };
+}
+
+export function markInvalidSiyuanLinkRefsInMarkdown(
+  markdown: string,
+  invalidIds: ReadonlySet<string>
+): InvalidLinkRefMarkResult {
+  const source = markdown || "";
+  if (!source || !invalidIds.size) {
+    return {
+      markdown: source,
+      markedCount: 0,
+    };
+  }
+
+  const linkMarked = markInvalidWithPattern(source, SIYUAN_DOC_LINK_PATTERN, invalidIds, 2);
+  const blockRefMarked = markInvalidWithPattern(
+    linkMarked.markdown,
+    BLOCK_REF_PATTERN,
+    invalidIds,
+    1
+  );
+  const wikiRefMarked = markInvalidWithPattern(
+    blockRefMarked.markdown,
+    WIKI_REF_PATTERN,
+    invalidIds,
+    1
+  );
+
+  return {
+    markdown: wikiRefMarked.markdown,
+    markedCount: linkMarked.markedCount + blockRefMarked.markedCount + wikiRefMarked.markedCount,
   };
 }
 
