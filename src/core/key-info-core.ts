@@ -389,7 +389,7 @@ export function extractKeyInfoFromMarkdown(markdown: string): KeyInfoExtract[] {
   const boldMatches = collectRegexMatches(
     maskedWithoutHeadings,
     markdown,
-    /(\*\*|__)([^\n]+?)\1/g,
+    /(?<!\\)(\*\*|__)([^\n]+?)(?<!\\)\1/g,
     "bold",
     2
   );
@@ -408,7 +408,7 @@ export function extractKeyInfoFromMarkdown(markdown: string): KeyInfoExtract[] {
   const italicMatches = collectRegexMatches(
     maskedWithoutBold,
     markdown,
-    /(\*|_)([^\n]+?)\1/g,
+    /(?<!\\)(\*|_)([^\n]+?)(?<!\\)\1/g,
     "italic",
     2
   );

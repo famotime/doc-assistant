@@ -82,6 +82,21 @@ describe("key-info-core", () => {
     expect(italicItems).toEqual(["有效"]);
   });
 
+  test("does not extract escaped markdown markers as bold or italic", () => {
+    const markdown = [
+      "正文 \\*不是斜体\\* 与 \\_也不是斜体\\_。",
+      "正文 \\*\\*不是加粗\\*\\* 与 \\_\\_也不是加粗\\_\\_。",
+      "正文 *有效斜体* 与 **有效加粗**。",
+    ].join("\n");
+
+    const items = extractKeyInfoFromMarkdown(markdown);
+    const italicItems = items.filter((item) => item.type === "italic").map((item) => item.text);
+    const boldItems = items.filter((item) => item.type === "bold").map((item) => item.text);
+
+    expect(italicItems).toEqual(["有效斜体"]);
+    expect(boldItems).toEqual(["有效加粗"]);
+  });
+
   test("filters meaningless key info content", () => {
     const markdown = [
       "正文 <strong>*</strong> 与 <em>\\</em> 与 <mark>=</mark>。",
