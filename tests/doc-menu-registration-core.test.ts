@@ -97,6 +97,35 @@ describe("doc-menu-registration-core", () => {
     expect(sorted[1]?.key).toBe("export-current");
   });
 
+  test("places insert-blank-before-headings at the end of insert group by default", () => {
+    const defaultOrder = buildDefaultDocActionOrder(ACTIONS);
+    const sorted = sortActionsByOrder(ACTIONS, defaultOrder);
+    const insertKeys = sorted
+      .filter((action) => action.group === "insert")
+      .map((action) => action.key);
+
+    expect(insertKeys[insertKeys.length - 1]).toBe("insert-blank-before-headings");
+  });
+
+  test("allows moving insert-blank-before-headings via custom order", () => {
+    const customOrder = normalizeDocActionOrder(
+      {
+        actionOrder: [
+          "insert-blank-before-headings",
+          "insert-backlinks",
+          "insert-child-docs",
+        ],
+      },
+      ACTIONS
+    );
+    const sorted = sortActionsByOrder(ACTIONS, customOrder);
+    const insertKeys = sorted
+      .filter((action) => action.group === "insert")
+      .map((action) => action.key);
+
+    expect(insertKeys[0]).toBe("insert-blank-before-headings");
+  });
+
   test("normalizes favorite action keys and removes invalid values", () => {
     const favorites = normalizeDocFavoriteActionKeys(
       {
