@@ -136,7 +136,18 @@ function convertSingleLineBreaksToParagraphMarks(value: string): string {
 }
 
 function isParagraphBlockType(type: string): boolean {
-  return (type || "").toLowerCase() === "p";
+  const normalized = (type || "").trim().toLowerCase();
+  return (
+    normalized === "p" ||
+    normalized === "paragraph" ||
+    normalized === "nodeparagraph" ||
+    normalized === "i" ||
+    normalized === "listitem" ||
+    normalized === "nodelistitem" ||
+    normalized === "l" ||
+    normalized === "list" ||
+    normalized === "nodelist"
+  );
 }
 
 export class ActionRunner {
@@ -491,20 +502,24 @@ export class ActionRunner {
 
     const selectedIds = getSelectedBlockIds(protyle);
     const selectedSet = new Set(selectedIds);
-    const targetBlocks = selectedIds.length
-      ? blocks.filter((block) => selectedSet.has(block.id))
-      : blocks;
-    const useAllDoc = selectedIds.length === 0;
-    if (useAllDoc) {
-      showMessage("未选中任何内容，将按本文档所有内容进行操作", 5000, "info");
+    if (!selectedIds.length) {
+      showMessage("未选中任何内容，请先选中后再操作", 5000, "info");
+      return;
     }
+    const targetBlocks = blocks.filter((block) => selectedSet.has(block.id));
+    const useAllDoc = false;
     if (!targetBlocks.length) {
       showMessage("未在当前文档定位到选中内容，请调整选区后重试", 5000, "error");
       return;
     }
 
+    const hasAnySingleLineBreak = targetBlocks.some(
+      (block) => countSingleLineBreaks(normalizeLineEndings(block.markdown || "")) > 0
+    );
     const shouldMergeParagraphs =
-      targetBlocks.length > 1 && targetBlocks.every((block) => isParagraphBlockType(block.type));
+      !hasAnySingleLineBreak &&
+      targetBlocks.length > 1 &&
+      targetBlocks.every((block) => isParagraphBlockType(block.type));
     const mode: LinebreakToggleMode = shouldMergeParagraphs
       ? "paragraph-to-line"
       : "linebreak-to-paragraph";

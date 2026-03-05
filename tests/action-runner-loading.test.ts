@@ -1213,6 +1213,33 @@ describe("action-runner loading guard", () => {
     expect(deleteBlockByIdMock).not.toHaveBeenCalled();
   });
 
+  test("prefers converting line breaks to paragraphs when selection has both line breaks and paragraphs", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="a" class="protyle-wysiwyg--select">A</div>
+      <div data-node-id="b" class="protyle-wysiwyg--select">B</div>
+    `;
+    const protyle = { block: { rootID: "doc-1" }, wysiwyg: { element: root } } as any;
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      { id: "a", type: "p", content: "A", markdown: "第一行\n第二行", resolved: true } as any,
+      { id: "b", type: "p", content: "B", markdown: "第二段", resolved: true } as any,
+    ]);
+    const askConfirm = vi.fn().mockResolvedValue(true);
+    const runner = new ActionRunner({
+      isMobile: () => false,
+      resolveDocId: () => "doc-1",
+      askConfirm,
+    } as any);
+
+    await runner.runAction("toggle-linebreaks-paragraphs" as any, undefined, protyle);
+
+    expect(askConfirm).toHaveBeenCalledTimes(1);
+    expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：换行转分段");
+    expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
+    expect(updateBlockMarkdownMock).toHaveBeenCalledWith("a", "第一行\n\n第二行");
+    expect(deleteBlockByIdMock).not.toHaveBeenCalled();
+  });
+
   test("merges selected paragraph blocks into one block separated by line breaks", async () => {
     const root = document.createElement("div");
     root.innerHTML = `
@@ -1243,7 +1270,91 @@ describe("action-runner loading guard", () => {
     expect(deleteBlockByIdMock).toHaveBeenCalledWith("b");
   });
 
-  test("prompts to process the whole document when no block is selected", async () => {
+  test("treats NodeParagraph blocks as mergeable paragraph blocks", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="a" class="protyle-wysiwyg--select">A</div>
+      <div data-node-id="b" class="protyle-wysiwyg--select">B</div>
+    `;
+    const protyle = { block: { rootID: "doc-1" }, wysiwyg: { element: root } } as any;
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      { id: "a", type: "NodeParagraph", content: "A", markdown: "第一段", resolved: false } as any,
+      { id: "b", type: "NodeParagraph", content: "B", markdown: "第二段", resolved: false } as any,
+    ]);
+    const askConfirm = vi.fn().mockResolvedValue(true);
+    const runner = new ActionRunner({
+      isMobile: () => false,
+      resolveDocId: () => "doc-1",
+      askConfirm,
+    } as any);
+
+    await runner.runAction("toggle-linebreaks-paragraphs" as any, undefined, protyle);
+
+    expect(askConfirm).toHaveBeenCalledTimes(1);
+    expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：分段转换行");
+    expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
+    expect(updateBlockMarkdownMock).toHaveBeenCalledWith("a", "第一段\n第二段");
+    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(1);
+    expect(deleteBlockByIdMock).toHaveBeenCalledWith("b");
+  });
+
+  test("merges selected unordered list item blocks", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="a" class="protyle-wysiwyg--select">A</div>
+      <div data-node-id="b" class="protyle-wysiwyg--select">B</div>
+    `;
+    const protyle = { block: { rootID: "doc-1" }, wysiwyg: { element: root } } as any;
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      { id: "a", type: "i", content: "A", markdown: "- 第一项", resolved: true } as any,
+      { id: "b", type: "i", content: "B", markdown: "- 第二项", resolved: true } as any,
+    ]);
+    const askConfirm = vi.fn().mockResolvedValue(true);
+    const runner = new ActionRunner({
+      isMobile: () => false,
+      resolveDocId: () => "doc-1",
+      askConfirm,
+    } as any);
+
+    await runner.runAction("toggle-linebreaks-paragraphs" as any, undefined, protyle);
+
+    expect(askConfirm).toHaveBeenCalledTimes(1);
+    expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：分段转换行");
+    expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
+    expect(updateBlockMarkdownMock).toHaveBeenCalledWith("a", "- 第一项\n- 第二项");
+    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(1);
+    expect(deleteBlockByIdMock).toHaveBeenCalledWith("b");
+  });
+
+  test("merges selected ordered list item blocks", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="a" class="protyle-wysiwyg--select">A</div>
+      <div data-node-id="b" class="protyle-wysiwyg--select">B</div>
+    `;
+    const protyle = { block: { rootID: "doc-1" }, wysiwyg: { element: root } } as any;
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      { id: "a", type: "NodeListItem", content: "A", markdown: "1. 第一项", resolved: false } as any,
+      { id: "b", type: "NodeListItem", content: "B", markdown: "2. 第二项", resolved: false } as any,
+    ]);
+    const askConfirm = vi.fn().mockResolvedValue(true);
+    const runner = new ActionRunner({
+      isMobile: () => false,
+      resolveDocId: () => "doc-1",
+      askConfirm,
+    } as any);
+
+    await runner.runAction("toggle-linebreaks-paragraphs" as any, undefined, protyle);
+
+    expect(askConfirm).toHaveBeenCalledTimes(1);
+    expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：分段转换行");
+    expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
+    expect(updateBlockMarkdownMock).toHaveBeenCalledWith("a", "1. 第一项\n2. 第二项");
+    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(1);
+    expect(deleteBlockByIdMock).toHaveBeenCalledWith("b");
+  });
+
+  test("shows prompt only and does nothing when no block is selected", async () => {
     const root = document.createElement("div");
     root.innerHTML = `
       <div data-node-id="a">A</div>
@@ -1254,7 +1365,7 @@ describe("action-runner loading guard", () => {
       { id: "a", type: "p", content: "A", markdown: "第一段", resolved: true } as any,
       { id: "b", type: "p", content: "B", markdown: "第二段", resolved: true } as any,
     ]);
-    const askConfirm = vi.fn().mockResolvedValue(false);
+    const askConfirm = vi.fn().mockResolvedValue(true);
     const runner = new ActionRunner({
       isMobile: () => false,
       resolveDocId: () => "doc-1",
@@ -1263,9 +1374,8 @@ describe("action-runner loading guard", () => {
 
     await runner.runAction("toggle-linebreaks-paragraphs" as any, undefined, protyle);
 
-    expect(showMessageMock).toHaveBeenCalledWith("未选中任何内容，将按本文档所有内容进行操作", 5000, "info");
-    expect(askConfirm).toHaveBeenCalledTimes(1);
-    expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：分段转换行");
+    expect(showMessageMock).toHaveBeenCalledWith("未选中任何内容，请先选中后再操作", 5000, "info");
+    expect(askConfirm).not.toHaveBeenCalled();
     expect(updateBlockMarkdownMock).not.toHaveBeenCalled();
     expect(deleteBlockByIdMock).not.toHaveBeenCalled();
   });
