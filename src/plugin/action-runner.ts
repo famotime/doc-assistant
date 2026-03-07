@@ -4,6 +4,8 @@ import {
   extractSiyuanBlockIdsFromMarkdown,
   markInvalidSiyuanLinkRefsInMarkdown,
 } from "@/core/link-core";
+import { KeyInfoFilter } from "@/core/key-info-core";
+import { createDocAssistantLogger } from "@/core/logger-core";
 import {
   cleanupAiOutputArtifactsInMarkdown,
   findDeleteFromCurrentBlockIds,
@@ -12,17 +14,14 @@ import {
   removeTrailingWhitespaceFromDom,
   removeTrailingWhitespaceFromMarkdown,
 } from "@/core/markdown-cleanup-core";
-import { decodeURIComponentSafe } from "@/core/workspace-path-core";
-import { KeyInfoFilter } from "@/core/key-info-core";
+import { applyBlockStyle, BlockStyle } from "@/core/markdown-style-core";
+import {
+  convertChineseEnglishPunctuation,
+  detectPunctuationToggleMode,
+  PunctuationToggleMode,
+} from "@/core/punctuation-toggle-core";
 import { resolveDocDirectChildBlockId } from "@/services/block-lineage";
-import { deleteDocsByIds, findDuplicateCandidates } from "@/services/dedupe";
 import {
-  exportCurrentDocMarkdown,
-  exportDocAndChildKeyInfoAsZip,
-  exportDocIdsAsMarkdownZip,
-} from "@/services/exporter";
-import {
-  appendBlock,
   deleteBlockById,
   getBlockDOMs,
   getBlockKramdowns,
@@ -32,36 +31,19 @@ import {
   updateBlockDom,
   updateBlockMarkdown,
 } from "@/services/kernel";
-import {
-  filterDocRefsByExistingLinks,
-  getBacklinkDocs,
-  getChildDocs,
-  getForwardLinkedDocIds,
-  toBacklinkMarkdown,
-  toChildDocMarkdown,
-} from "@/services/link-resolver";
-import { moveDocsAsChildren } from "@/services/mover";
-import { openDedupeDialog } from "@/ui/dialogs";
 import { ActionConfig, ActionKey, ACTIONS } from "@/plugin/actions";
-import { ProtyleLike } from "@/plugin/doc-context";
-import { applyBlockStyle, BlockStyle } from "@/core/markdown-style-core";
-import {
-  convertChineseEnglishPunctuation,
-  detectPunctuationToggleMode,
-  PunctuationToggleMode,
-} from "@/core/punctuation-toggle-core";
-import { createDocAssistantLogger } from "@/core/logger-core";
-import { dispatchAction, ActionHandlerMap } from "@/plugin/action-runner-dispatcher";
+import { applyMarkdownTransformToBlocks } from "@/plugin/action-runner-block-transform";
 import {
   getExplicitlySelectedBlockIds,
   getSelectedBlockIds,
   resolveCurrentBlockId,
 } from "@/plugin/action-runner-context";
-import { applyMarkdownTransformToBlocks } from "@/plugin/action-runner-block-transform";
-import { convertDocImagesToWebp } from "@/services/image-webp";
-import { convertDocImagesToPng } from "@/services/image-png";
-import { resizeDocImagesToDisplay } from "@/services/image-display-size";
-import { removeDocImageLinks } from "@/services/image-remove";
+import { dispatchAction, ActionHandlerMap } from "@/plugin/action-runner-dispatcher";
+import { createExportActionHandlers } from "@/plugin/action-runner-export-handlers";
+import { createInsertActionHandlers } from "@/plugin/action-runner-insert-handlers";
+import { createMediaActionHandlers } from "@/plugin/action-runner-media-handlers";
+import { createOrganizeActionHandlers } from "@/plugin/action-runner-organize-handlers";
+import { ProtyleLike } from "@/plugin/doc-context";
 
 type ActionRunnerDeps = {
   isMobile: () => boolean;
@@ -89,7 +71,6 @@ type AiOutputCleanupPreview = {
 
 type LinebreakToggleMode = "linebreak-to-paragraph" | "paragraph-to-line";
 
-const forwardLinksLogger = createDocAssistantLogger("ForwardLinks");
 const styleLogger = createDocAssistantLogger("Style");
 const trailingWhitespaceLogger = createDocAssistantLogger("TrailingWhitespace");
 const deleteFromCurrentLogger = createDocAssistantLogger("DeleteFromCurrent");
@@ -173,42 +154,39 @@ function removeSpaceLikeChars(value: string): { next: string; removedCount: numb
 export class ActionRunner {
   private isRunning = false;
 
-  private readonly actionHandlers: ActionHandlerMap = {
-    "export-current": async (docId) => this.handleExportCurrent(docId),
-    "insert-backlinks": async (docId) => this.handleInsertBacklinks(docId),
-    "insert-child-docs": async (docId) => this.handleInsertChildDocs(docId),
-    "export-child-key-info-zip": async (docId, protyle) =>
-      this.handleExportChildKeyInfoZip(docId, protyle),
-    "export-backlinks-zip": async (docId) => this.handleExportBacklinksZip(docId),
-    "export-forward-zip": async (docId) => this.handleExportForwardZip(docId),
-    "move-backlinks": async (docId) => this.handleMoveBacklinks(docId),
-    "move-forward-links": async (docId) => this.handleMoveForwardLinks(docId),
-    dedupe: async (docId) => this.handleDedupe(docId),
-    "remove-extra-blank-lines": async (docId) => this.handleRemoveExtraBlankLines(docId),
-    "trim-trailing-whitespace": async (docId) => this.handleTrimTrailingWhitespace(docId),
-    "convert-images-to-webp": async (docId) => this.handleConvertImagesToWebp(docId),
-    "convert-images-to-png": async (docId) => this.handleConvertImagesToPng(docId),
-    "resize-images-to-display": async (docId) => this.handleResizeImagesToDisplay(docId),
-    "remove-doc-images": async (docId) => this.handleRemoveDocImages(docId),
-    "toggle-links-refs": async (docId) => this.handleToggleLinksRefs(docId),
-    "clean-ai-output": async (docId) => this.handleCleanAiOutput(docId),
-    "mark-invalid-links-refs": async (docId) => this.handleMarkInvalidLinksRefs(docId),
-    "insert-blank-before-headings": async (docId) => this.handleInsertBlankBeforeHeadings(docId),
-    "delete-from-current-to-end": async (docId, protyle) =>
-      this.handleDeleteFromCurrentToEnd(docId, protyle),
-    "bold-selected-blocks": async (docId, protyle) =>
-      this.handleStyleSelectedBlocks(docId, protyle, "bold"),
-    "highlight-selected-blocks": async (docId, protyle) =>
-      this.handleStyleSelectedBlocks(docId, protyle, "highlight"),
-    "toggle-linebreaks-paragraphs": async (docId, protyle) =>
-      this.handleToggleLinebreaksParagraphs(docId, protyle),
-    "remove-selected-spacing": async (docId, protyle) =>
-      this.handleRemoveSelectedSpacing(docId, protyle),
-    "toggle-selected-punctuation": async (docId, protyle) =>
-      this.handleToggleSelectedPunctuation(docId, protyle),
-  };
+  private readonly actionHandlers: ActionHandlerMap;
 
-  constructor(private readonly deps: ActionRunnerDeps) {}
+  constructor(private readonly deps: ActionRunnerDeps) {
+    this.actionHandlers = {
+      ...createExportActionHandlers({
+        getKeyInfoFilter: this.deps.getKeyInfoFilter,
+      }),
+      ...createInsertActionHandlers(),
+      ...createOrganizeActionHandlers({
+        askConfirmWithVisibleDialog: (title, text) => this.askConfirmWithVisibleDialog(title, text),
+        setBusy: this.deps.setBusy,
+      }),
+      ...createMediaActionHandlers(),
+      "remove-extra-blank-lines": async (docId) => this.handleRemoveExtraBlankLines(docId),
+      "trim-trailing-whitespace": async (docId) => this.handleTrimTrailingWhitespace(docId),
+      "toggle-links-refs": async (docId) => this.handleToggleLinksRefs(docId),
+      "clean-ai-output": async (docId) => this.handleCleanAiOutput(docId),
+      "mark-invalid-links-refs": async (docId) => this.handleMarkInvalidLinksRefs(docId),
+      "insert-blank-before-headings": async (docId) => this.handleInsertBlankBeforeHeadings(docId),
+      "delete-from-current-to-end": async (docId, protyle) =>
+        this.handleDeleteFromCurrentToEnd(docId, protyle),
+      "bold-selected-blocks": async (docId, protyle) =>
+        this.handleStyleSelectedBlocks(docId, protyle, "bold"),
+      "highlight-selected-blocks": async (docId, protyle) =>
+        this.handleStyleSelectedBlocks(docId, protyle, "highlight"),
+      "toggle-linebreaks-paragraphs": async (docId, protyle) =>
+        this.handleToggleLinebreaksParagraphs(docId, protyle),
+      "remove-selected-spacing": async (docId, protyle) =>
+        this.handleRemoveSelectedSpacing(docId, protyle),
+      "toggle-selected-punctuation": async (docId, protyle) =>
+        this.handleToggleSelectedPunctuation(docId, protyle),
+    } as ActionHandlerMap;
+  }
 
   private async askConfirmWithVisibleDialog(title: string, text: string): Promise<boolean> {
     this.deps.setBusy?.(false);
@@ -253,172 +231,6 @@ export class ActionRunner {
         void this.runAction(action.key);
       });
     }
-  }
-
-  private async handleExportCurrent(docId: string) {
-    const result = await exportCurrentDocMarkdown(docId);
-    if (result.mode === "zip") {
-      showMessage(
-        `导出完成（含媒体）：${result.fileName}${result.zipPath ? `，路径 ${result.zipPath}` : ""}`,
-        8000,
-        "info"
-      );
-      return;
-    }
-    showMessage(`导出完成：${result.fileName}`, 5000, "info");
-  }
-
-  private async handleInsertBacklinks(docId: string) {
-    const backlinks = await getBacklinkDocs(docId);
-    if (!backlinks.length) {
-      showMessage("当前文档没有可插入的反向链接文档", 5000, "info");
-      return;
-    }
-    const filtered = await filterDocRefsByExistingLinks(docId, backlinks);
-    if (!filtered.items.length) {
-      showMessage("当前文档已包含所有反向链接文档", 5000, "info");
-      return;
-    }
-    const markdown = toBacklinkMarkdown(filtered.items);
-    await appendBlock(markdown, docId);
-    const skipSuffix = filtered.skipped.length ? `，跳过已存在 ${filtered.skipped.length} 个` : "";
-    showMessage(`已插入 ${filtered.items.length} 个反链文档链接${skipSuffix}`, 5000, "info");
-  }
-
-  private async handleInsertChildDocs(docId: string) {
-    const childDocs = await getChildDocs(docId);
-    if (!childDocs.length) {
-      showMessage("当前文档没有可插入的子文档", 5000, "info");
-      return;
-    }
-    const filtered = await filterDocRefsByExistingLinks(docId, childDocs);
-    if (!filtered.items.length) {
-      showMessage("当前文档已包含所有子文档链接", 5000, "info");
-      return;
-    }
-    const markdown = toChildDocMarkdown(filtered.items);
-    await appendBlock(markdown, docId);
-    const skipSuffix = filtered.skipped.length ? `，跳过已存在 ${filtered.skipped.length} 个` : "";
-    showMessage(`已插入 ${filtered.items.length} 个子文档链接${skipSuffix}`, 5000, "info");
-  }
-
-  private async handleExportChildKeyInfoZip(docId: string, protyle?: ProtyleLike) {
-    const result = await exportDocAndChildKeyInfoAsZip({
-      docId,
-      filter: this.deps.getKeyInfoFilter?.(),
-      protyle,
-    });
-    showMessage(`导出完成：${result.docCount} 篇文档，${result.itemCount} 条关键内容`, 6000, "info");
-  }
-
-  private async handleExportBacklinksZip(docId: string) {
-    const backlinks = await getBacklinkDocs(docId);
-    const ids = backlinks.map((item) => item.id);
-    await this.exportDocZip(ids, "反链", docId);
-  }
-
-  private async handleExportForwardZip(docId: string) {
-    const ids = await getForwardLinkedDocIds(docId);
-    forwardLinksLogger.debug("export-forward-zip trigger", {
-      currentDocId: docId,
-      forwardDocCount: ids.length,
-      forwardDocIds: ids,
-    });
-    if (!ids.length) {
-      showMessage(
-        "未找到可导出的正链文档。请打开开发者工具查看 [DocAssistant][ForwardLinks] 调试日志",
-        9000,
-        "error"
-      );
-      return;
-    }
-    await this.exportDocZip(ids, "正链", docId);
-  }
-
-  private async exportDocZip(ids: string[], label: string, currentDocId: string) {
-    if (!ids.length) {
-      showMessage(`未找到可导出的${label}文档`, 5000, "error");
-      return;
-    }
-    const currentDoc = await getDocMetaByID(currentDocId);
-    const preferredZipName = currentDoc?.title || currentDocId;
-    const result = await exportDocIdsAsMarkdownZip(ids, preferredZipName);
-    const displayName = decodeURIComponentSafe(result.name || "");
-    const displayZip = decodeURIComponentSafe(result.zip || "");
-    showMessage(`导出完成（${displayName}）：${displayZip}`, 9000, "info");
-  }
-
-  private async handleMoveBacklinks(docId: string) {
-    const backlinks = await getBacklinkDocs(docId);
-    if (!backlinks.length) {
-      showMessage("当前文档没有反向链接文档可移动", 5000, "info");
-      return;
-    }
-    const ok = await this.askConfirmWithVisibleDialog(
-      "确认移动",
-      `将尝试把 ${backlinks.length} 篇反链文档移动为当前文档子文档，是否继续？`
-    );
-    if (!ok) {
-      return;
-    }
-    this.deps.setBusy?.(true);
-
-    const report = await moveDocsAsChildren(
-      docId,
-      backlinks.map((item) => item.id)
-    );
-    const message = [
-      `移动完成：成功 ${report.successIds.length}`,
-      `跳过 ${report.skippedIds.length}`,
-      `重命名 ${report.renamed.length}`,
-      `失败 ${report.failed.length}`,
-    ].join("，");
-    showMessage(message, 9000, report.failed.length ? "error" : "info");
-  }
-
-  private async handleMoveForwardLinks(docId: string) {
-    const forwardLinkedIds = await getForwardLinkedDocIds(docId);
-    if (!forwardLinkedIds.length) {
-      showMessage("当前文档没有正链文档可移动", 5000, "info");
-      return;
-    }
-    const ok = await this.askConfirmWithVisibleDialog(
-      "确认移动",
-      `将尝试把 ${forwardLinkedIds.length} 篇正链文档移动为当前文档子文档，是否继续？`
-    );
-    if (!ok) {
-      return;
-    }
-    this.deps.setBusy?.(true);
-
-    const report = await moveDocsAsChildren(docId, forwardLinkedIds);
-    const message = [
-      `移动完成：成功 ${report.successIds.length}`,
-      `跳过 ${report.skippedIds.length}`,
-      `重命名 ${report.renamed.length}`,
-      `失败 ${report.failed.length}`,
-    ].join("，");
-    showMessage(message, 9000, report.failed.length ? "error" : "info");
-  }
-
-  private async handleDedupe(docId: string) {
-    const candidates = await findDuplicateCandidates(docId, 0.85);
-    if (!candidates.length) {
-      showMessage("未识别到重复文档", 5000, "info");
-      return;
-    }
-
-    openDedupeDialog({
-      candidates,
-      onDelete: async (ids) => deleteDocsByIds(ids),
-      onOpenAll: (docs) => {
-        this.openDocsByProtocol(docs.map((doc) => doc.id));
-      },
-      onInsertLinks: (docs) => {
-        void this.insertDocLinks(docId, docs);
-      },
-    });
-    showMessage(`识别到 ${candidates.length} 组重复候选`, 5000, "info");
   }
 
   private async handleStyleSelectedBlocks(
@@ -1090,51 +902,6 @@ export class ActionRunner {
     return normalized;
   }
 
-  private openDocByProtocol(blockId: string) {
-    const url = `siyuan://blocks/${blockId}`;
-    try {
-      window.open(url);
-    } catch {
-      window.location.href = url;
-    }
-  }
-
-  private openDocsByProtocol(ids: string[]) {
-    const unique = [...new Set(ids)].filter(Boolean);
-    if (!unique.length) {
-      showMessage("没有可打开的文档", 4000, "info");
-      return;
-    }
-    unique.forEach((id, index) => {
-      window.setTimeout(() => {
-        this.openDocByProtocol(id);
-      }, index * 120);
-    });
-    showMessage(`已尝试打开 ${unique.length} 篇文档`, 5000, "info");
-  }
-
-  private async insertDocLinks(
-    docId: string,
-    docs: Array<{ id: string; title: string }>
-  ) {
-    const unique = new Map<string, { id: string; title: string }>();
-    for (const doc of docs) {
-      if (!doc?.id || unique.has(doc.id)) {
-        continue;
-      }
-      unique.set(doc.id, { id: doc.id, title: doc.title || doc.id });
-    }
-    const items = Array.from(unique.values());
-    if (!items.length) {
-      showMessage("没有可插入的文档链接", 4000, "info");
-      return;
-    }
-    const lines = items.map((item) => `- [${item.title}](siyuan://blocks/${item.id})`);
-    const markdown = `## 重复候选文档\n\n${lines.join("\n")}`;
-    await appendBlock(markdown, docId);
-    showMessage(`已插入 ${items.length} 个文档链接`, 5000, "info");
-  }
-
   private async handleRemoveExtraBlankLines(docId: string) {
     const blocks = await getChildBlocksByParentId(docId);
     if (!blocks.length) {
@@ -1408,6 +1175,8 @@ export class ActionRunner {
       showMessage("当前文档未发现可互转的思源文档链接或引用", 4000, "info");
       return;
     }
+    const preferredMode =
+      modeResult.mode === "link-to-ref" ? "link-to-ref" : "ref-to-link";
 
     let previewConvertedCount = 0;
     let previewUpdatableBlockCount = 0;
@@ -1417,7 +1186,7 @@ export class ActionRunner {
       if (!source) {
         continue;
       }
-      const converted = convertSiyuanLinksAndRefsInMarkdown(source, modeResult.mode);
+      const converted = convertSiyuanLinksAndRefsInMarkdown(source, preferredMode);
       const hasChanges = converted.convertedCount > 0 && converted.markdown !== source;
       if (!hasChanges) {
         continue;
@@ -1440,7 +1209,7 @@ export class ActionRunner {
     }
 
     const actionLabel =
-      modeResult.mode === "link-to-ref" ? "文档链接转换为引用" : "引用转换为文档链接";
+      preferredMode === "link-to-ref" ? "文档链接转换为引用" : "引用转换为文档链接";
     const confirmLines = [
       `互转方向：${actionLabel}`,
       `预计转换 ${previewConvertedCount} 处，共更新 ${previewUpdatableBlockCount} 个块。`,
@@ -1460,7 +1229,7 @@ export class ActionRunner {
       isHighRisk: (source) => isHighRiskForMarkdownWrite(source),
       updateBlockMarkdown,
       transform: (source) => {
-        const converted = convertSiyuanLinksAndRefsInMarkdown(source, modeResult.mode);
+        const converted = convertSiyuanLinksAndRefsInMarkdown(source, preferredMode);
         return {
           markdown: converted.markdown,
           changedCount: converted.convertedCount,
@@ -1490,95 +1259,6 @@ export class ActionRunner {
       return;
     }
     showMessage(`已将 ${convertedCount} 处${actionLabel}，共更新 ${updatedBlockCount} 个块`, 5000, "info");
-  }
-
-  private async handleConvertImagesToWebp(docId: string) {
-    const report = await convertDocImagesToWebp(docId);
-    if (report.scannedImageCount <= 0) {
-      showMessage("当前文档未发现可转换的本地图片", 5000, "info");
-      return;
-    }
-    if (report.replacedLinkCount <= 0) {
-      if (report.failedImageCount > 0) {
-        showMessage(`未完成任何替换，失败 ${report.failedImageCount} 张图片`, 7000, "error");
-        return;
-      }
-      showMessage("未完成任何替换（可能已是 WebP 或压缩收益不足）", 5000, "info");
-      return;
-    }
-    const savedKb = (report.totalSavedBytes / 1024).toFixed(1);
-    const gifSuffix = report.skippedGifCount > 0 ? `（已忽略 GIF ${report.skippedGifCount} 张）` : "";
-    const suffix = report.failedImageCount > 0 ? `，失败 ${report.failedImageCount} 张` : "";
-    showMessage(
-      `图片转换完成：替换 ${report.replacedLinkCount} 处，更新 ${report.updatedBlockCount} 个块，转换 ${report.convertedImageCount} 张，节省 ${savedKb} KB${gifSuffix}${suffix}`,
-      report.failedImageCount > 0 ? 7000 : 6000,
-      report.failedImageCount > 0 ? "error" : "info"
-    );
-  }
-
-  private async handleConvertImagesToPng(docId: string) {
-    const report = await convertDocImagesToPng(docId);
-    if (report.scannedImageCount <= 0) {
-      showMessage("当前文档未发现可转换的本地图片", 5000, "info");
-      return;
-    }
-    if (report.replacedLinkCount <= 0) {
-      if (report.failedImageCount > 0) {
-        showMessage(`未完成任何替换，失败 ${report.failedImageCount} 张图片`, 7000, "error");
-        return;
-      }
-      showMessage("未完成任何替换（已是 PNG 或仅包含 GIF）", 5000, "info");
-      return;
-    }
-    const suffix =
-      report.failedImageCount > 0 ? `，失败 ${report.failedImageCount} 张` : "";
-    showMessage(
-      `PNG 转换完成：替换 ${report.replacedLinkCount} 处，更新 ${report.updatedBlockCount} 个块，转换 ${report.convertedImageCount} 张（已忽略 GIF）${suffix}`,
-      report.failedImageCount > 0 ? 7000 : 6000,
-      report.failedImageCount > 0 ? "error" : "info"
-    );
-  }
-
-  private async handleResizeImagesToDisplay(docId: string) {
-    const report = await resizeDocImagesToDisplay(docId);
-    if (report.scannedImageCount <= 0) {
-      showMessage("当前文档未发现带显示尺寸的本地图片", 5000, "info");
-      return;
-    }
-    if (report.replacedLinkCount <= 0) {
-      if (report.failedImageCount > 0) {
-        showMessage(`未完成任何替换，失败 ${report.failedImageCount} 张图片`, 7000, "error");
-        return;
-      }
-      showMessage("未完成任何替换（可能尺寸未缩小或压缩收益不足）", 5000, "info");
-      return;
-    }
-    const savedKb = (report.totalSavedBytes / 1024).toFixed(1);
-    const suffix =
-      report.failedImageCount > 0 ? `，失败 ${report.failedImageCount} 张` : "";
-    showMessage(
-      `图片尺寸调整完成：替换 ${report.replacedLinkCount} 处，更新 ${report.updatedBlockCount} 个块，缩减 ${report.resizedImageCount} 张，节省 ${savedKb} KB${suffix}`,
-      report.failedImageCount > 0 ? 7000 : 6000,
-      report.failedImageCount > 0 ? "error" : "info"
-    );
-  }
-
-  private async handleRemoveDocImages(docId: string) {
-    const report = await removeDocImageLinks(docId);
-    if (report.scannedImageLinkCount <= 0) {
-      showMessage("当前文档未发现可删除的图片链接", 5000, "info");
-      return;
-    }
-    if (report.removedLinkCount <= 0) {
-      showMessage(`未删除任何图片链接，失败 ${report.failedBlockCount} 个块`, 7000, "error");
-      return;
-    }
-    const suffix = report.failedBlockCount > 0 ? `，失败 ${report.failedBlockCount} 个块` : "";
-    showMessage(
-      `图片链接删除完成：删除 ${report.removedLinkCount} 处，更新 ${report.updatedBlockCount} 个块${suffix}`,
-      report.failedBlockCount > 0 ? 7000 : 6000,
-      report.failedBlockCount > 0 ? "error" : "info"
-    );
   }
 
   private async handleTrimTrailingWhitespace(docId: string) {

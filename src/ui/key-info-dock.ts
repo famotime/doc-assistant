@@ -1,4 +1,4 @@
-import { KeyInfoFilter, KeyInfoItem, KeyInfoType, keyInfoTypeLabel } from "@/core/key-info-core";
+import { KeyInfoFilter, KeyInfoItem, keyInfoTypeLabel } from "@/core/key-info-core";
 import {
   consumeKeyInfoListPostRenderAction,
   createKeyInfoListScrollState,
@@ -11,7 +11,14 @@ import {
   releaseKeyInfoListScrollLockOnUserScroll,
 } from "@/core/key-info-scroll-lock-core";
 import type { KeyInfoListScrollLock } from "@/core/key-info-scroll-lock-core";
-import { DockDocAction, DockTabKey, DOCK_TABS } from "@/core/dock-panel-core";
+import { DockDocAction, DockTabKey } from "@/core/dock-panel-core";
+import {
+  buildKeyInfoDockRow,
+  createKeyInfoDockChrome,
+  FILTER_TYPES,
+  filterKeyInfoDockItems,
+  formatKeyInfoDockText,
+} from "@/ui/key-info-dock-controls";
 import { renderKeyInfoDockDocActions } from "@/ui/key-info-dock-doc-actions";
 import {
   deriveKeyInfoDockRenderFlags,
@@ -34,35 +41,25 @@ export type KeyInfoDockState = {
   scrollContextKey: string;
 };
 
+export type KeyInfoDockCallbacks = {
+  onExport: () => void;
+  onRefresh?: () => void;
+  onItemClick?: (item: KeyInfoItem) => void;
+  onDocActionClick?: (actionKey: string) => void;
+  onDocMenuToggleAll?: (enabled: boolean) => void;
+  onDocActionMenuToggle?: (actionKey: string, enabled: boolean) => void;
+  onDocActionReorder?: (order: string[]) => void;
+  onDocActionOrderReset?: () => void;
+  onDocActionFavoriteToggle?: (actionKey: string, favorited: boolean) => void;
+  onDocFavoriteActionReorder?: (order: string[]) => void;
+};
+
 export type KeyInfoDockHandle = {
   setState: (next: Partial<KeyInfoDockState>) => void;
   getState: () => KeyInfoDockState;
   getVisibleItems: () => KeyInfoItem[];
   destroy: () => void;
 };
-
-type FilterKey = "all" | KeyInfoType;
-
-const FILTER_TYPES: KeyInfoType[] = [
-  "title",
-  "bold",
-  "italic",
-  "highlight",
-  "code",
-  "remark",
-  "tag",
-];
-
-const FILTERS: Array<{ key: FilterKey; label: string; icon: string }> = [
-  { key: "all", label: "全部", icon: "全" },
-  { key: "title", label: "标题", icon: "题" },
-  { key: "bold", label: "加粗", icon: "粗" },
-  { key: "highlight", label: "高亮", icon: "亮" },
-  { key: "remark", label: "备注", icon: "注" },
-  { key: "italic", label: "斜体", icon: "斜" },
-  { key: "code", label: "代码", icon: "码" },
-  { key: "tag", label: "标签", icon: "签" },
-];
 
 const MOUSEDOWN_SELECTION_PRESERVED_ACTION_KEYS = new Set<string>([
   "bold-selected-blocks",
@@ -72,67 +69,9 @@ const MOUSEDOWN_SELECTION_PRESERVED_ACTION_KEYS = new Set<string>([
   "delete-from-current-to-end",
 ]);
 
-function filterItems(items: KeyInfoItem[], filter: KeyInfoFilter): KeyInfoItem[] {
-  if (!filter.length) {
-    return [];
-  }
-  if (filter.length >= FILTER_TYPES.length) {
-    return items;
-  }
-  const active = new Set(filter);
-  return items.filter((item) => active.has(item.type));
-}
-
-function buildTypeBadge(type: KeyInfoType): HTMLSpanElement {
-  const badge = document.createElement("span");
-  badge.className = `doc-assistant-keyinfo__badge doc-assistant-keyinfo__badge--${type}`;
-  badge.textContent = keyInfoTypeLabel(type);
-  return badge;
-}
-
-function formatKeyInfoText(item: KeyInfoItem): string {
-  const content = item.text || "";
-  const hasAnyListPrefix = (value: string) => /^\s*(?:[-+]\s*|\*\s+|\d+\.\s*)/.test(value);
-  if (!item.listPrefix && !item.listItem) {
-    return content;
-  }
-  if (item.listPrefix) {
-    if (content.startsWith(item.listPrefix) || hasAnyListPrefix(content)) {
-      return content;
-    }
-    return `${item.listPrefix}${content}`;
-  }
-  return hasAnyListPrefix(content) ? content : `- ${content}`;
-}
-
-function buildRow(item: KeyInfoItem): HTMLDivElement {
-  const row = document.createElement("div");
-  row.className = "doc-assistant-keyinfo__row";
-
-  const badge = buildTypeBadge(item.type);
-  const text = document.createElement("div");
-  text.className = "doc-assistant-keyinfo__text";
-  text.textContent = formatKeyInfoText(item);
-
-  row.appendChild(badge);
-  row.appendChild(text);
-  return row;
-}
-
 export function createKeyInfoDock(
   element: HTMLElement,
-  callbacks: {
-    onExport: () => void;
-    onRefresh?: () => void;
-    onItemClick?: (item: KeyInfoItem) => void;
-    onDocActionClick?: (actionKey: string) => void;
-    onDocMenuToggleAll?: (enabled: boolean) => void;
-    onDocActionMenuToggle?: (actionKey: string, enabled: boolean) => void;
-    onDocActionReorder?: (order: string[]) => void;
-    onDocActionOrderReset?: () => void;
-    onDocActionFavoriteToggle?: (actionKey: string, favorited: boolean) => void;
-    onDocFavoriteActionReorder?: (order: string[]) => void;
-  }
+  callbacks: KeyInfoDockCallbacks
 ): KeyInfoDockHandle {
   const state: KeyInfoDockState = {
     docTitle: "",
@@ -148,159 +87,41 @@ export function createKeyInfoDock(
     scrollContextKey: "",
   };
 
-  const root = document.createElement("div");
-  root.className = "doc-assistant-keyinfo is-entering";
-  const entryAnimationTimer = setTimeout(() => {
-    root.classList.remove("is-entering");
-    root.classList.add("is-entered");
-  }, 180);
-
-  const header = document.createElement("div");
-  header.className = "doc-assistant-keyinfo__header";
-  const titleRow = document.createElement("div");
-  titleRow.className = "doc-assistant-keyinfo__title-row doc-assistant-keyinfo__title-row--centered";
-  const title = document.createElement("div");
-  title.className = "doc-assistant-keyinfo__title";
-  title.textContent = "文档助手";
-  const loadingTag = document.createElement("span");
-  loadingTag.className = "doc-assistant-keyinfo__loading ft__secondary";
-  loadingTag.textContent = "";
-  const docTitle = document.createElement("div");
-  docTitle.className = "doc-assistant-keyinfo__doc-title doc-assistant-keyinfo__doc-title--prominent";
-  docTitle.textContent = "未选择文档";
-  const meta = document.createElement("div");
-  meta.className = "doc-assistant-keyinfo__meta ft__secondary";
-  meta.textContent = "关键内容 0 · 当前筛选 0";
-  titleRow.appendChild(title);
-  titleRow.appendChild(loadingTag);
-  header.appendChild(titleRow);
-  header.appendChild(docTitle);
-  header.appendChild(meta);
-
-  const tabs = document.createElement("div");
-  tabs.className = "doc-assistant-keyinfo__tabs";
-  const tabButtons = new Map<DockTabKey, HTMLButtonElement>();
-  DOCK_TABS.forEach((tab) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "doc-assistant-keyinfo__tab";
-    button.textContent = tab.label;
-    button.dataset.tab = tab.key;
-    button.addEventListener("click", () => {
-      setState({ activeTab: tab.key });
-    });
-    tabs.appendChild(button);
-    tabButtons.set(tab.key, button);
-  });
-
-  const filters = document.createElement("div");
-  filters.className = "doc-assistant-keyinfo__filters";
-  const filterButtons = new Map<FilterKey, HTMLButtonElement>();
-
-  FILTERS.forEach((filter) => {
-    const button = document.createElement("button");
-    button.className = "b3-button b3-button--small doc-assistant-keyinfo__filter";
-    button.dataset.type = filter.key;
-    const icon = document.createElement("span");
-    icon.className = `doc-assistant-keyinfo__filter-icon doc-assistant-keyinfo__filter-icon--${filter.key}`;
-    icon.textContent = filter.icon;
-    const label = document.createElement("span");
-    label.className = "doc-assistant-keyinfo__filter-label";
-    label.textContent = filter.label;
-    button.appendChild(icon);
-    button.appendChild(label);
-    button.addEventListener("click", () => {
-      if (filter.key === "all") {
+  const {
+    entryAnimationTimer,
+    docTitle,
+    loadingTag,
+    meta,
+    tabButtons,
+    filterButtons,
+    list,
+    keyInfoPanel,
+    docProcessPanel,
+    docMenuToggleInput,
+    docProcessList,
+  } = createKeyInfoDockChrome(element, {
+    onTabSelect: (tab) => {
+      setState({ activeTab: tab });
+    },
+    onFilterSelect: (filterKey) => {
+      if (filterKey === "all") {
         const isAllActive = state.filter.length >= FILTER_TYPES.length;
         setState({ filter: isAllActive ? [] : [...FILTER_TYPES] });
         return;
       }
       const current = new Set(state.filter);
-      if (current.has(filter.key)) {
-        current.delete(filter.key);
+      if (current.has(filterKey)) {
+        current.delete(filterKey);
       } else {
-        current.add(filter.key);
+        current.add(filterKey);
       }
       setState({ filter: Array.from(current) });
-    });
-    filters.appendChild(button);
-    filterButtons.set(filter.key, button);
+    },
+    onRefresh: () => callbacks.onRefresh?.(),
+    onExport: () => callbacks.onExport(),
+    onDocMenuToggleAll: (enabled) => callbacks.onDocMenuToggleAll?.(enabled),
+    onDocActionOrderReset: () => callbacks.onDocActionOrderReset?.(),
   });
-
-  const list = document.createElement("div");
-  list.className = "doc-assistant-keyinfo__list";
-
-  const footer = document.createElement("div");
-  footer.className = "doc-assistant-keyinfo__footer";
-  const refreshBtn = document.createElement("button");
-  refreshBtn.className =
-    "b3-button b3-button--outline b3-button--small doc-assistant-keyinfo__footer-btn doc-assistant-keyinfo__footer-btn--refresh";
-  const refreshIcon = document.createElement("span");
-  refreshIcon.className = "doc-assistant-keyinfo__footer-icon";
-  refreshIcon.textContent = "↻";
-  const refreshLabel = document.createElement("span");
-  refreshLabel.textContent = "刷新";
-  refreshBtn.appendChild(refreshIcon);
-  refreshBtn.appendChild(refreshLabel);
-  refreshBtn.addEventListener("click", () => callbacks.onRefresh?.());
-  const exportBtn = document.createElement("button");
-  exportBtn.className =
-    "b3-button b3-button--small b3-button--primary doc-assistant-keyinfo__footer-btn doc-assistant-keyinfo__footer-btn--export";
-  const exportIcon = document.createElement("span");
-  exportIcon.className = "doc-assistant-keyinfo__footer-icon";
-  exportIcon.textContent = "⬇";
-  const exportLabel = document.createElement("span");
-  exportLabel.textContent = "导出 Markdown";
-  exportBtn.appendChild(exportIcon);
-  exportBtn.appendChild(exportLabel);
-  exportBtn.addEventListener("click", () => callbacks.onExport());
-  footer.appendChild(refreshBtn);
-  footer.appendChild(exportBtn);
-
-  const keyInfoPanel = document.createElement("div");
-  keyInfoPanel.className = "doc-assistant-keyinfo__panel doc-assistant-keyinfo__panel--key-info";
-  keyInfoPanel.appendChild(filters);
-  keyInfoPanel.appendChild(list);
-  keyInfoPanel.appendChild(footer);
-
-  const docProcessPanel = document.createElement("div");
-  docProcessPanel.className = "doc-assistant-keyinfo__panel doc-assistant-keyinfo__panel--doc-process";
-  const docMenuToggleRow = document.createElement("div");
-  docMenuToggleRow.className = "doc-assistant-keyinfo__menu-toggle-row";
-  const docMenuToggle = document.createElement("label");
-  docMenuToggle.className = "doc-assistant-keyinfo__menu-toggle";
-  const docMenuToggleLabel = document.createElement("span");
-  docMenuToggleLabel.className = "doc-assistant-keyinfo__menu-toggle-label";
-  docMenuToggleLabel.textContent = "全部注册到文档菜单";
-  const docMenuToggleInput = document.createElement("input");
-  docMenuToggleInput.type = "checkbox";
-  docMenuToggleInput.className = "doc-assistant-keyinfo__menu-toggle-input";
-  docMenuToggleInput.addEventListener("change", () => {
-    callbacks.onDocMenuToggleAll?.(docMenuToggleInput.checked);
-  });
-  docMenuToggle.appendChild(docMenuToggleLabel);
-  docMenuToggle.appendChild(docMenuToggleInput);
-  const docActionResetBtn = document.createElement("button");
-  docActionResetBtn.type = "button";
-  docActionResetBtn.className =
-    "b3-button b3-button--outline b3-button--small doc-assistant-keyinfo__action-reset-btn";
-  docActionResetBtn.textContent = "重置排序";
-  docActionResetBtn.addEventListener("click", () => {
-    callbacks.onDocActionOrderReset?.();
-  });
-  docMenuToggleRow.appendChild(docActionResetBtn);
-  docMenuToggleRow.appendChild(docMenuToggle);
-  const docProcessList = document.createElement("div");
-  docProcessList.className = "doc-assistant-keyinfo__actions";
-  docProcessPanel.appendChild(docProcessList);
-  docProcessPanel.appendChild(docMenuToggleRow);
-
-  root.appendChild(header);
-  root.appendChild(tabs);
-  root.appendChild(keyInfoPanel);
-  root.appendChild(docProcessPanel);
-
-  element.replaceChildren(root);
 
   let scrollLock: KeyInfoListScrollLock | null = null;
   let restoringScroll = false;
@@ -494,7 +315,7 @@ export function createKeyInfoDock(
 
     badge.className = `doc-assistant-keyinfo__badge doc-assistant-keyinfo__badge--${item.type}`;
     badge.textContent = keyInfoTypeLabel(item.type);
-    const renderedText = formatKeyInfoText(item);
+    const renderedText = formatKeyInfoDockText(item);
     text.textContent = renderedText;
 
     if (item.blockId && onItemClick) {
@@ -540,7 +361,7 @@ export function createKeyInfoDock(
   };
 
   const renderList = () => {
-    const visible = filterItems(state.items, state.filter);
+    const visible = filterKeyInfoDockItems(state.items, state.filter);
     if (state.loading && !visible.length) {
       list.replaceChildren();
       const empty = document.createElement("div");
@@ -580,7 +401,7 @@ export function createKeyInfoDock(
         }
         let row = rowCache.get(item.id);
         if (!row) {
-          row = buildRow(item);
+          row = buildKeyInfoDockRow(item);
           updateRow(row, item, handleItemClick);
           rowCache.set(item.id, row);
         }
@@ -598,7 +419,7 @@ export function createKeyInfoDock(
       activeIds.add(item.id);
       let row = rowCache.get(item.id);
       if (!row) {
-        row = buildRow(item);
+        row = buildKeyInfoDockRow(item);
         rowCache.set(item.id, row);
       }
       updateRow(row, item, handleItemClick);
@@ -629,7 +450,7 @@ export function createKeyInfoDock(
       loadingTag.classList.remove("is-visible");
     }
     if (state.activeTab === "key-info") {
-      const visibleCount = filterItems(state.items, state.filter).length;
+      const visibleCount = filterKeyInfoDockItems(state.items, state.filter).length;
       meta.textContent = `关键内容 ${state.items.length} · 当前筛选 ${visibleCount}`;
       return;
     }
@@ -681,7 +502,7 @@ export function createKeyInfoDock(
   return {
     setState,
     getState: () => ({ ...state }),
-    getVisibleItems: () => filterItems(state.items, state.filter),
+    getVisibleItems: () => filterKeyInfoDockItems(state.items, state.filter),
     destroy: () => {
       clearTimeout(entryAnimationTimer);
       element.replaceChildren();

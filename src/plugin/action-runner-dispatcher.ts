@@ -5,6 +5,8 @@ export type ActionHandler = (docId: string, protyle?: ProtyleLike) => Promise<vo
 
 export type ActionHandlerMap = Record<ActionKey, ActionHandler>;
 
+export type PartialActionHandlerMap = Partial<ActionHandlerMap>;
+
 export async function dispatchAction(
   action: ActionKey,
   docId: string,

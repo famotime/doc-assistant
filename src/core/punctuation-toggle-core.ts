@@ -52,7 +52,10 @@ const EN_PUNCTUATION_SET = new Set(Object.keys(EN_TO_ZH_PUNCTUATION_MAP));
 const ZH_PUNCTUATION_SET = new Set(Object.keys(ZH_TO_EN_PUNCTUATION_MAP));
 
 function isAsciiDigit(char: string | undefined): boolean {
-  return Boolean(char) && /[0-9]/.test(char);
+  if (!char) {
+    return false;
+  }
+  return /[0-9]/.test(char);
 }
 
 function shouldKeepEnglishPunctuationInNumber(

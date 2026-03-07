@@ -6,20 +6,9 @@ import {
   showMessage,
 } from "siyuan";
 import {
-  buildDefaultDocActionOrder,
-  buildDefaultDocMenuRegistration,
   DocMenuRegistrationState,
-  DocMenuRegistrationStorageV1,
-  filterDocMenuActions,
-  normalizeDocActionOrder,
-  normalizeDocFavoriteActionKeys,
-  normalizeDocMenuRegistration,
-  reorderDocFavoriteActions,
-  setAllDocMenuRegistration as setAllDocMenuRegistrationState,
-  setDocFavoriteAction as setDocFavoriteActionState,
-  setSingleDocMenuRegistration as setSingleDocMenuRegistrationState,
-  sortActionsByOrder,
 } from "@/core/doc-menu-registration-core";
+import { KeyInfoFilter } from "@/core/key-info-core";
 import { ActionRunner } from "@/plugin/action-runner";
 import { ACTIONS, ActionKey } from "@/plugin/actions";
 import { getProtyleDocId, ProtyleLike } from "@/plugin/doc-context";
@@ -28,6 +17,23 @@ import {
   bindPluginLifecycleEvents,
   unbindPluginLifecycleEvents,
 } from "@/plugin/plugin-lifecycle-events";
+import {
+  populateEditorTitleMenu,
+  registerPluginCommands,
+} from "@/plugin/plugin-lifecycle-menu";
+import {
+  buildDefaultPluginDocMenuState,
+  getOrderedPluginActions,
+  PluginDocMenuState,
+  normalizePluginDocMenuState,
+  reorderPluginDocFavoriteActions,
+  resetPluginDocActionOrder,
+  serializePluginDocMenuState,
+  setAllPluginDocMenuRegistration,
+  setPluginDocActionFavorite,
+  setPluginDocActionOrder,
+  setSinglePluginDocMenuRegistration,
+} from "@/plugin/plugin-lifecycle-state";
 import {
   destroyActionProcessingOverlay,
   hideActionProcessingOverlay,
@@ -40,26 +46,27 @@ export default class DocLinkToolkitPlugin extends Plugin {
   private isMobile = false;
   private readonly docMenuRegistrationStorageName = "doc-menu-registration";
   private docMenuRegistrationState: DocMenuRegistrationState =
-    buildDefaultDocMenuRegistration(ACTIONS);
-  private docActionOrderState: ActionKey[] = buildDefaultDocActionOrder(ACTIONS);
+    buildDefaultPluginDocMenuState(ACTIONS).docMenuRegistrationState;
+  private docActionOrderState: ActionKey[] =
+    buildDefaultPluginDocMenuState(ACTIONS).docActionOrderState;
   private docFavoriteActionKeys: ActionKey[] = [];
 
-  private readonly actionRunner = new ActionRunner({
+  private readonly actionRunner: ActionRunner = new ActionRunner({
     isMobile: () => this.isMobile,
     resolveDocId: (explicitId?: string, protyle?: ProtyleLike) =>
       this.resolveDocId(explicitId, protyle),
     askConfirm: (title, text) => this.askConfirm(title, text),
     setBusy: (busy) => this.setActionBusy(busy),
-    getKeyInfoFilter: () => this.keyInfoController.getCurrentFilter(),
+    getKeyInfoFilter: (): KeyInfoFilter | undefined => this.keyInfoController.getCurrentFilter(),
   });
 
-  private readonly keyInfoController = new KeyInfoController({
+  private readonly keyInfoController: KeyInfoController = new KeyInfoController({
     isMobile: () => this.isMobile,
     getCurrentDocId: () => this.currentDocId,
     getCurrentProtyle: () => this.currentProtyle,
     resolveDocId: (explicitId?: string, protyle?: ProtyleLike) =>
       this.resolveDocId(explicitId, protyle),
-    runAction: (action, explicitId, protyle) =>
+    runAction: (action, explicitId, protyle): Promise<void> =>
       this.actionRunner.runAction(action, explicitId, protyle),
     actions: () => this.getOrderedActions(),
     getDocMenuRegistrationState: () => this.docMenuRegistrationState,
@@ -105,23 +112,15 @@ export default class DocLinkToolkitPlugin extends Plugin {
       this.currentProtyle = detail.protyle;
     }
 
-    const menuActions = filterDocMenuActions(
-      this.getOrderedActions(),
-      this.docMenuRegistrationState
-    );
-    if (!menuActions.length) {
-      return;
-    }
-    menu.addSeparator();
-    for (const action of menuActions) {
-      menu.addItem({
-        icon: action.icon,
-        label: action.menuText,
-        click: () => {
-          void this.actionRunner.runAction(action.key, docId, detail.protyle);
-        },
-      });
-    }
+    populateEditorTitleMenu({
+      menu,
+      docId,
+      protyle: detail.protyle,
+      actions: this.getOrderedActions(),
+      docMenuRegistrationState: this.docMenuRegistrationState,
+      runAction: (action, explicitId, protyle) =>
+        this.actionRunner.runAction(action, explicitId, protyle),
+    });
   };
 
   async onload() {
@@ -135,19 +134,11 @@ export default class DocLinkToolkitPlugin extends Plugin {
     });
     this.keyInfoController.registerDock(this);
 
-    this.getOrderedActions().forEach((action) => {
-      const run = () => {
-        void this.actionRunner.runAction(action.key);
-      };
-      this.addCommand({
-        langKey: `docLinkToolkit.${action.key}`,
-        langText: action.commandText,
-        hotkey: "",
-        callback: run,
-        editorCallback: (protyle: unknown) => {
-          void this.actionRunner.runAction(action.key, undefined, protyle as ProtyleLike);
-        },
-      });
+    registerPluginCommands({
+      actions: this.getOrderedActions(),
+      register: (config) => this.addCommand(config),
+      runAction: (action, explicitId, protyle) =>
+        this.actionRunner.runAction(action, explicitId, protyle),
     });
   }
 
@@ -208,80 +199,82 @@ export default class DocLinkToolkitPlugin extends Plugin {
   private async loadDocMenuRegistrationState() {
     try {
       const raw = await this.loadData(this.docMenuRegistrationStorageName);
-      this.docMenuRegistrationState = normalizeDocMenuRegistration(raw, ACTIONS);
-      this.docActionOrderState = normalizeDocActionOrder(raw, ACTIONS);
-      this.docFavoriteActionKeys = normalizeDocFavoriteActionKeys(raw, ACTIONS);
+      this.applyDocMenuState(normalizePluginDocMenuState(raw, ACTIONS));
     } catch (error: unknown) {
-      this.docMenuRegistrationState = buildDefaultDocMenuRegistration(ACTIONS);
-      this.docActionOrderState = buildDefaultDocActionOrder(ACTIONS);
-      this.docFavoriteActionKeys = [];
+      this.applyDocMenuState(buildDefaultPluginDocMenuState(ACTIONS));
       const message = error instanceof Error ? error.message : String(error);
       showMessage(`读取菜单注册配置失败：${message}`, 5000, "error");
     }
   }
 
   private async persistDocMenuRegistrationState() {
-    const payload: DocMenuRegistrationStorageV1 = {
-      version: 1,
-      actionEnabled: this.docMenuRegistrationState,
-      actionOrder: this.docActionOrderState,
-      favoriteActionKeys: this.docFavoriteActionKeys,
-    };
-    await this.saveData(this.docMenuRegistrationStorageName, payload);
+    await this.saveData(
+      this.docMenuRegistrationStorageName,
+      serializePluginDocMenuState(this.snapshotDocMenuState())
+    );
   }
 
   private getOrderedActions() {
-    return sortActionsByOrder(ACTIONS, this.docActionOrderState);
+    return getOrderedPluginActions(ACTIONS, this.snapshotDocMenuState());
+  }
+
+  private snapshotDocMenuState(): PluginDocMenuState {
+    return {
+      docMenuRegistrationState: this.docMenuRegistrationState,
+      docActionOrderState: this.docActionOrderState,
+      docFavoriteActionKeys: this.docFavoriteActionKeys,
+    };
+  }
+
+  private applyDocMenuState(state: PluginDocMenuState) {
+    this.docMenuRegistrationState = state.docMenuRegistrationState;
+    this.docActionOrderState = state.docActionOrderState;
+    this.docFavoriteActionKeys = state.docFavoriteActionKeys;
   }
 
   async setAllDocMenuRegistration(enabled: boolean) {
-    this.docMenuRegistrationState = setAllDocMenuRegistrationState(
-      this.docMenuRegistrationState,
-      enabled
+    this.applyDocMenuState(
+      setAllPluginDocMenuRegistration(this.snapshotDocMenuState(), enabled)
     );
     await this.persistDocMenuRegistrationState();
     this.keyInfoController.syncDocActions();
   }
 
   async setSingleDocMenuRegistration(key: ActionKey, enabled: boolean) {
-    this.docMenuRegistrationState = setSingleDocMenuRegistrationState(
-      this.docMenuRegistrationState,
-      key,
-      enabled
+    this.applyDocMenuState(
+      setSinglePluginDocMenuRegistration(this.snapshotDocMenuState(), key, enabled)
     );
     await this.persistDocMenuRegistrationState();
     this.keyInfoController.syncDocActions();
   }
 
   async setDocActionOrder(order: ActionKey[]) {
-    this.docActionOrderState = normalizeDocActionOrder(
-      { actionOrder: order },
-      ACTIONS
+    this.applyDocMenuState(
+      setPluginDocActionOrder(this.snapshotDocMenuState(), order, ACTIONS)
     );
     await this.persistDocMenuRegistrationState();
     this.keyInfoController.syncDocActions();
   }
 
   async resetDocActionOrder() {
-    this.docActionOrderState = buildDefaultDocActionOrder(ACTIONS);
+    this.applyDocMenuState(
+      resetPluginDocActionOrder(this.snapshotDocMenuState(), ACTIONS)
+    );
     await this.persistDocMenuRegistrationState();
     this.keyInfoController.syncDocActions();
   }
 
   async setDocActionFavorite(key: ActionKey, favorited: boolean) {
-    this.docFavoriteActionKeys = setDocFavoriteActionState(
-      this.docFavoriteActionKeys,
-      key,
-      favorited
+    this.applyDocMenuState(
+      setPluginDocActionFavorite(this.snapshotDocMenuState(), key, favorited)
     );
     await this.persistDocMenuRegistrationState();
     this.keyInfoController.syncDocActions();
   }
 
   async setDocFavoriteActionOrder(order: ActionKey[]) {
-    this.docFavoriteActionKeys = reorderDocFavoriteActions(
-      this.docFavoriteActionKeys,
-      order
+    this.applyDocMenuState(
+      reorderPluginDocFavoriteActions(this.snapshotDocMenuState(), order)
     );
     await this.persistDocMenuRegistrationState();
     this.keyInfoController.syncDocActions();

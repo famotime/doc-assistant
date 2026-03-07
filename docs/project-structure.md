@@ -1,6 +1,6 @@
 # siyuan-doc-assist 项目结构（详细版）
 
-更新时间：`2026-03-05`
+更新时间：`2026-03-07`
 
 ## 1. 快照范围与统计
 
@@ -10,16 +10,16 @@
 
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | ---: | ---: | --- |
-| `src/` | 63 | 9 | 主插件源码 |
-| `src/core/` | 15 | 0 | 纯业务逻辑 |
-| `src/plugin/` | 10 | 0 | 生命周期与动作编排 |
-| `src/services/` | 25 | 0 | Kernel/IO 集成层 |
-| `src/ui/` | 5 | 0 | Dock/Dialog/UI 逻辑 |
+| `src/` | 78 | 8 | Source |
+| `src/core/` | 20 | 0 | Core logic |
+| `src/plugin/` | 17 | 0 | Plugin orchestration |
+| `src/services/` | 27 | 0 | Kernel/IO 集成层 |
+| `src/ui/` | 6 | 0 | Dock/Dialog/UI |
 | `src/types/` | 4 | 0 | 类型声明 |
 | `src/i18n/` | 2 | 0 | 国际化文案 |
-| `tests/` | 53 | 1 | Vitest 测试与 mocks |
+| `tests/` | 56 | 1 | Vitest tests + mocks |
 | `assets/` | 2 | 0 | README 截图资源 |
-| `docs/` | 1 | 0 | 项目文档 |
+| `docs/` | 2 | 0 | 项目文档（结构快照、重构计划） |
 | `reference_docs/` | 26 | 8 | SiYuan 参考资料 |
 | `plugin-sample-vite-vue/` | 35 | 10 | 模板参考工程 |
 
@@ -32,11 +32,11 @@
 | `.vscode/` | 目录 | 工作区编辑器配置 |
 | `assets/` | 目录 | README 展示图片等静态资源 |
 | `dist/` | 目录 | `pnpm build` 产物目录 |
-| `docs/` | 目录 | 项目内部文档 |
+| `docs/` | 目录 | 项目内部文档（结构快照、重构计划） |
 | `node_modules/` | 目录 | 依赖安装目录（构建产物） |
 | `plugin-sample-vite-vue/` | 目录 | 模板工程（不参与主插件运行） |
 | `reference_docs/` | 目录 | 本地化整理的 SiYuan 开发参考 |
-| `src/` | 目录 | 主插件源码 |
+| `src/` | 78 | 8 | Source |
 | `tests/` | 目录 | 单元测试 |
 | `tmp/` | 目录 | 临时文件目录（当前有临时 `.sy` 文件） |
 
@@ -68,14 +68,14 @@
 
 ## 4. `src/` 详细结构与文件职责
 
-### 4.1 分层关系
+### 4.1 Layering
 
-- `src/index.ts`：插件入口，仅负责样式加载与生命周期导出。
-- `src/plugin/*`：插件运行时编排层，负责事件绑定、命令注册、动作分发。
-- `src/core/*`：纯计算/转换逻辑（字符串、列表、排序、规则判断），可单测。
-- `src/services/*`：SiYuan Kernel API 与文件系统交互层，连接外部数据。
-- `src/ui/*`：Dock、Dialog、Overlay 等界面行为与状态管理。
-- `src/types/*` + `src/i18n/*`：类型与文案支撑层。
+- `src/index.ts`: plugin entry that only loads styles and re-exports the lifecycle.
+- `src/plugin/*`: runtime orchestration layer for event binding, command registration, and action dispatch. `action-runner.ts` is now the execution shell, `plugin-lifecycle.ts` coordinates lifecycle helpers, and `key-info-controller.ts` delegates dock-specific callback/state shaping to helpers.
+- `src/core/*`: pure computation and transformation logic, suitable for focused unit tests.
+- `src/services/*`: SiYuan Kernel/file-system integration layer.
+- `src/ui/*`: Dock, dialog, and overlay behavior. `key-info-dock.ts` now focuses on state-driven rendering and scroll behavior, while `key-info-dock-controls.ts` builds the static control shell.
+- `src/types/*` + `src/i18n/*`: types and text resources.
 
 ### 4.2 `src/` 根文件
 
@@ -84,48 +84,62 @@
 | `src/index.ts` | 加载全局样式并导出插件主类（`plugin-lifecycle`） |
 | `src/index.scss` | 插件全局样式 |
 
-### 4.3 `src/core/`（15 个文件）
+### 4.3 `src/core/` (20 files)
 
-| 文件 | 职责 |
+| File | Responsibility |
 | --- | --- |
-| `src/core/dedupe-core.ts` | 文档标题归一化、重复组识别、保留文档推荐 |
-| `src/core/doc-menu-registration-core.ts` | 文档标题菜单动作注册状态、顺序、收藏状态的归一化与更新 |
-| `src/core/dock-doc-action-order-core.ts` | Dock 动作分组内拖拽排序与变更判断 |
-| `src/core/dock-panel-core.ts` | Dock Tab/Action 基础模型与构建函数 |
-| `src/core/export-media-core.ts` | Markdown 中资源路径提取、文件名归一化、导出链接重写 |
-| `src/core/image-webp-core.ts` | 本地图片路径识别、可转换格式判断、链接重写/移除基础逻辑 |
-| `src/core/key-info-core.ts` | 关键内容类型定义、Markdown 抽取与导出渲染 |
-| `src/core/key-info-scroll-core.ts` | 关键内容列表滚动状态维护与渲染后动作消费 |
-| `src/core/key-info-scroll-lock-core.ts` | 滚动锁管理，避免程序化滚动与用户滚动冲突 |
-| `src/core/link-core.ts` | 链接/引用互转、无效链接标记、块 ID 提取、链接去重/过滤 |
-| `src/core/logger-core.ts` | 插件调试日志开关与带作用域 logger |
-| `src/core/markdown-cleanup-core.ts` | 行尾空白清理、空段落识别、AI 输出清理、删除范围计算等 |
-| `src/core/markdown-style-core.ts` | 选中块加粗/高亮转换 |
-| `src/core/move-core.ts` | 文档移动冲突策略（跳过/改名后移动） |
-| `src/core/workspace-path-core.ts` | 工作区路径规范化与 `/api/file/getFile` 请求体构建 |
+| `src/core/dedupe-core.ts` | Duplicate-title normalization, grouping, and keep-candidate recommendation |
+| `src/core/doc-menu-registration-core.ts` | Menu registration, ordering, and favorite-state normalization/update logic |
+| `src/core/dock-doc-action-order-core.ts` | Dock action ordering and reorder checks |
+| `src/core/dock-panel-core.ts` | Dock tab/action models and builders |
+| `src/core/export-media-core.ts` | Media path extraction, filename normalization, and export-link rewriting |
+| `src/core/image-display-size-core.ts` | Markdown image display-size parsing and rewrite helpers |
+| `src/core/image-webp-core.ts` | Local-image format checks and link rewrite/remove helpers |
+| `src/core/key-info-core.ts` | Key-info types, extraction helpers, and Markdown rendering |
+| `src/core/key-info-scroll-core.ts` | Key-info list scroll-state maintenance and post-render actions |
+| `src/core/key-info-scroll-lock-core.ts` | Scroll-lock coordination between programmatic and user scrolling |
+| `src/core/link-core.ts` | Link/ref conversion, invalid-link marking, block-id extraction, and link filtering |
+| `src/core/logger-core.ts` | Scoped plugin logger and debug toggle |
+| `src/core/markdown-cleanup-ai-core.ts` | AI-output cleanup rules and metrics aggregation |
+| `src/core/markdown-cleanup-block-core.ts` | Blank-paragraph, heading-spacing, and delete-range block analysis |
+| `src/core/markdown-cleanup-core.ts` | Public cleanup facade that re-exports text/AI/block cleanup APIs |
+| `src/core/markdown-cleanup-text-core.ts` | Blank-line cleanup and trailing-whitespace cleanup for Markdown/DOM |
+| `src/core/markdown-style-core.ts` | Selected-block bold/highlight transforms |
+| `src/core/move-core.ts` | Move conflict strategy (skip/rename then move) |
+| `src/core/punctuation-toggle-core.ts` | Chinese/English punctuation mode detection and conversion |
+| `src/core/workspace-path-core.ts` | Workspace-path normalization and `/api/file/getFile` request building |
 
-### 4.4 `src/plugin/`（10 个文件）
+### 4.4 `src/plugin/` (17 files)
 
-| 文件 | 职责 |
+| File | Responsibility |
 | --- | --- |
-| `src/plugin/action-runner-block-transform.ts` | 块级 Markdown 批处理执行器（含风险块跳过、统计报告） |
-| `src/plugin/action-runner-context.ts` | 当前块与选中块 ID 解析 |
-| `src/plugin/action-runner-dispatcher.ts` | ActionKey -> 处理函数的统一分发 |
-| `src/plugin/action-runner.ts` | 全部插件动作的执行入口（确认框、并发保护、结果提示） |
-| `src/plugin/actions.ts` | 动作元数据清单（命令文案、菜单文案、分组、图标、移动端限制） |
-| `src/plugin/doc-context.ts` | Protyle 兼容类型与文档 ID 提取 |
-| `src/plugin/key-info-controller.ts` | Dock 注册、关键内容刷新、跳转、导出、动作面板联动 |
-| `src/plugin/key-info-state.ts` | 关键内容列表状态合并策略（当前直接采用最新快照） |
-| `src/plugin/plugin-lifecycle-events.ts` | `switch-protyle` / `click-editortitleicon` 事件绑定与解绑 |
-| `src/plugin/plugin-lifecycle.ts` | 插件主类：onload/onunload、命令注册、菜单注册、状态持久化 |
+| `src/plugin/action-runner-block-transform.ts` | Block-level Markdown batch executor with risk skipping and summary reporting |
+| `src/plugin/action-runner-context.ts` | Current block and selected-block ID resolution |
+| `src/plugin/action-runner-dispatcher.ts` | Central ActionKey -> handler dispatch and handler map types |
+| `src/plugin/action-runner-export-handlers.ts` | Export action handlers |
+| `src/plugin/action-runner-insert-handlers.ts` | Insert action handlers |
+| `src/plugin/action-runner-media-handlers.ts` | Image/media action handlers |
+| `src/plugin/action-runner-organize-handlers.ts` | Organize/dedupe action handlers |
+| `src/plugin/action-runner.ts` | Action execution shell with guards, context resolution, confirmation, and heavy edit flows |
+| `src/plugin/actions.ts` | Action metadata catalog |
+| `src/plugin/doc-context.ts` | Protyle-compatible types and doc-id extraction |
+| `src/plugin/key-info-controller-dock.ts` | Key-info dock helper for callback bridging and doc-action state shaping |
+| `src/plugin/key-info-controller.ts` | Key-info controller for dock registration, refresh flow, navigation, export, and interaction orchestration |
+| `src/plugin/key-info-state.ts` | Key-info list merge strategy |
+| `src/plugin/plugin-lifecycle-events.ts` | Lifecycle event bind/unbind helpers |
+| `src/plugin/plugin-lifecycle-menu.ts` | Lifecycle helper for title-menu population and command registration |
+| `src/plugin/plugin-lifecycle-state.ts` | Lifecycle helper for menu-state defaults, normalization, serialization, and updates |
+| `src/plugin/plugin-lifecycle.ts` | Plugin main class and lifecycle composition root |
 
-### 4.5 `src/services/`（25 个文件）
+### 4.5 `src/services/`（27 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
 | `src/services/block-lineage.ts` | 将嵌套块映射到文档直系子块，用于删除后续段落等场景 |
 | `src/services/dedupe.ts` | 重复文档候选查询、默认删除建议、批量删除 |
 | `src/services/exporter.ts` | 单文档导出、文档集合 zip 导出、子文档关键内容导出 |
+| `src/services/image-display-size-converter.ts` | 本地图片按显示宽高缩放并输出新资源（含跳过原因与节省字节统计） |
+| `src/services/image-display-size.ts` | 当前文档图片按显示尺寸批量缩放、链接回写与统计汇总 |
 | `src/services/image-png-converter.ts` | 单图片转 PNG（含跳过原因） |
 | `src/services/image-png.ts` | 当前文档图片批量转 PNG 与块内容回写 |
 | `src/services/image-remove.ts` | 当前文档图片链接删除与统计 |
@@ -149,15 +163,16 @@
 | `src/services/mover.ts` | 文档移动执行器（冲突改名、跳过规则、结果报告） |
 | `src/services/request.ts` | `fetchSyncPost` 二次封装与统一错误抛出 |
 
-### 4.6 `src/ui/`（5 个文件）
+### 4.6 `src/ui/` (6 files)
 
-| 文件 | 职责 |
+| File | Responsibility |
 | --- | --- |
-| `src/ui/action-processing-overlay.ts` | 操作执行中的遮罩层显示/隐藏/销毁 |
-| `src/ui/dialogs.ts` | 去重候选对话框渲染与回调桥接 |
-| `src/ui/key-info-dock-doc-actions.ts` | Dock 内文档动作区渲染与交互 |
-| `src/ui/key-info-dock-state.ts` | Dock 状态派生（Tab、Filter、展示标记） |
-| `src/ui/key-info-dock.ts` | Dock 组件创建、状态更新与对外句柄 |
+| `src/ui/action-processing-overlay.ts` | Busy overlay show/hide/destroy |
+| `src/ui/dialogs.ts` | Dedupe dialog rendering and callback bridge |
+| `src/ui/key-info-dock-controls.ts` | Key-info dock control shell: tabs, filters, footer, and doc-process panel DOM creation |
+| `src/ui/key-info-dock-doc-actions.ts` | Dock doc-action rendering and interaction |
+| `src/ui/key-info-dock-state.ts` | Dock render-flag and tab/filter state derivation |
+| `src/ui/key-info-dock.ts` | Key-info dock renderer: list updates, scroll state, partial rerendering, and public handle |
 
 ### 4.7 `src/types/`（4 个文件）
 
@@ -189,7 +204,7 @@
 - `plugin/ui` 逻辑：ActionRunner、Dock 状态、Controller 行为与菜单动作。
 - `tests/mocks/siyuan.ts`：SiYuan API mock。
 
-### 5.2 全量测试文件列表（53）
+### 5.2 全量测试文件列表（55）
 
 ```text
 tests/action-runner-block-transform.test.ts
@@ -205,6 +220,7 @@ tests/dock-panel-core.test.ts
 tests/export-media-core.test.ts
 tests/exporter-current.test.ts
 tests/exporter-zip-download.test.ts
+tests/image-display-size-service.test.ts
 tests/image-png-service.test.ts
 tests/image-remove-service.test.ts
 tests/image-webp-core.test.ts
@@ -221,6 +237,7 @@ tests/key-info-controller-doc-action.test.ts
 tests/key-info-controller-state.test.ts
 tests/key-info-core.test.ts
 tests/key-info-dock-list-prefix.test.ts
+tests/key-info-dock-controls.test.ts
 tests/key-info-dock-scroll-interaction.test.ts
 tests/key-info-dock-state.test.ts
 tests/key-info-inline.test.ts
@@ -243,6 +260,7 @@ tests/mover.test.ts
 tests/plugin-actions.test.ts
 tests/plugin-doc-context.test.ts
 tests/plugin-menu-registration.test.ts
+tests/punctuation-toggle-core.test.ts
 tests/request.test.ts
 tests/workspace-path-core.test.ts
 ```
@@ -261,6 +279,7 @@ tests/workspace-path-core.test.ts
 | 文件 | 说明 |
 | --- | --- |
 | `docs/project-structure.md` | 本文档，记录项目结构与职责映射 |
+| `docs/refactor-plan.md` | 当前重构计划与执行进度，要求在重构完成后同步 README 与结构文档 |
 
 ### 6.3 `reference_docs/`（SiYuan 参考资料）
 
@@ -322,3 +341,4 @@ dist/i18n/zh_CN.json
 2. 新增测试文件时，同步更新第 5.2 节完整清单。
 3. 构建产物格式变化（例如新增静态资源）时，更新第 7.1 节。
 4. 新增 CI 工作流或发布步骤时，更新第 8 章映射表。
+5. 完成结构性重构后，同时刷新 `docs/refactor-plan.md`、`docs/project-structure.md` 与 `README.md`。

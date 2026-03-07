@@ -6,6 +6,16 @@
 - 展示名称：`文档助手 / Doc Assist`
 - 最低思源版本：`3.5.7`
 
+## Development & Docs
+
+- Common commands: `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm test`, `pnpm typecheck:strict`
+- Structure snapshot: `docs/project-structure.md`
+- Refactor plan and progress: `docs/refactor-plan.md`
+- Action runner structure: `src/plugin/action-runner.ts` keeps runtime guards and dispatch, while `src/plugin/action-runner-*-handlers.ts` carries grouped action logic.
+- Lifecycle structure: `src/plugin/plugin-lifecycle.ts` remains the composition root, while `src/plugin/plugin-lifecycle-menu.ts` and `src/plugin/plugin-lifecycle-state.ts` own menu composition and persisted menu state.
+- Key-info structure: `src/plugin/key-info-controller.ts` keeps refresh/navigation/export orchestration, `src/plugin/key-info-controller-dock.ts` bridges dock callbacks, and `src/ui/key-info-dock-controls.ts` builds the dock control shell.
+- Cleanup structure: `src/core/markdown-cleanup-core.ts` now stays as the public facade, while `src/core/markdown-cleanup-text-core.ts`, `src/core/markdown-cleanup-ai-core.ts`, and `src/core/markdown-cleanup-block-core.ts` carry the internal transform families.
+
 ## 功能总览
 
 插件安装后会生成一个侧边栏，目前主要提供两大类功能：
@@ -58,11 +68,11 @@
 
   - 清理行尾空格（含Tab）：删除本文档中所有行尾空格，含Tab；
 
-  - 清理AI输出内容：实验功能。目前主要用于清理AI输出deep research报告中的脚注，初步适配了Gemini和Perplexity的输出样式；
+  - 清理AI输出内容：实验性功能。目前主要用于清理AI输出deep research报告中的脚注，初步适配了Gemini和Perplexity的输出样式；
 
-  - 去重本文档空段落：无须解释；
+  - 去除本文档空段落：让文档内容更加紧凑；
 
-  - 删除后续段落：很多从公众号剪藏的文章末尾都有很多冗余信息，可以借助此功能批量删除段落；
+  - 删除后续段落：很多从公众号剪藏的文章末尾都有很多冗余信息，可以借助此功能批量删除末尾冗余段落；
 
 - **图片：**
 

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  buildDefaultDocActionOrder,
+  buildDefaultDocMenuRegistration,
+} from "@/core/doc-menu-registration-core";
 import { ACTIONS } from "@/plugin/actions";
+import { showMessage } from "siyuan";
 
 vi.mock("siyuan", () => {
   class Plugin {
@@ -50,6 +55,8 @@ vi.mock("siyuan", () => {
     showMessage: vi.fn(),
   };
 });
+
+const showMessageMock = vi.mocked(showMessage);
 
 describe("plugin menu registration", () => {
   beforeEach(() => {
@@ -138,6 +145,40 @@ describe("plugin menu registration", () => {
     const secondLabel = menu.addItem.mock.calls[1]?.[0]?.label;
     expect(firstLabel).toBe("插入反链文档列表（去重）");
     expect(secondLabel).toBe("仅导出当前文档");
+  });
+
+  test("falls back to default menu state when stored data cannot be loaded", async () => {
+    const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
+    const plugin = new DocLinkToolkitPlugin() as any;
+    vi.spyOn(plugin, "loadData").mockRejectedValue(new Error("storage offline"));
+
+    await plugin.onload();
+
+    expect(plugin.docMenuRegistrationState).toEqual(buildDefaultDocMenuRegistration(ACTIONS));
+    expect(plugin.docActionOrderState).toEqual(buildDefaultDocActionOrder(ACTIONS));
+    expect(plugin.docFavoriteActionKeys).toEqual([]);
+    expect(showMessageMock).toHaveBeenCalledWith(
+      "读取菜单注册配置失败：storage offline",
+      5000,
+      "error"
+    );
+  });
+
+  test("registers commands using normalized action order from plugin data", async () => {
+    const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
+    const plugin = new DocLinkToolkitPlugin() as any;
+    await plugin.saveData("doc-menu-registration", {
+      version: 1,
+      actionEnabled: {},
+      actionOrder: ["insert-backlinks", "export-current"],
+    });
+
+    await plugin.onload();
+
+    const commandLangKeys = plugin.addCommand.mock.calls.map((call: any[]) => call[0]?.langKey);
+    expect(commandLangKeys[0]).toBe("docLinkToolkit.insert-backlinks");
+    expect(commandLangKeys[1]).toBe("docLinkToolkit.export-current");
+    expect(commandLangKeys).toHaveLength(ACTIONS.length);
   });
 
   test("persists state when toggling single action", async () => {

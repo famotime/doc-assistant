@@ -1,15 +1,16 @@
 import { getActiveEditor, showMessage } from "siyuan";
-import { buildDockDocActions } from "@/core/dock-panel-core";
-import {
-  DocMenuRegistrationState,
-  isAllDocMenuRegistrationEnabled,
-} from "@/core/doc-menu-registration-core";
+import { DocMenuRegistrationState } from "@/core/doc-menu-registration-core";
 import { buildKeyInfoMarkdown, KeyInfoFilter, KeyInfoItem } from "@/core/key-info-core";
-import { getDocKeyInfo } from "@/services/key-info";
-import { createKeyInfoDock, KeyInfoDockHandle } from "@/ui/key-info-dock";
-import { ActionConfig, ActionKey, isActionKey } from "@/plugin/actions";
+import {
+  buildKeyInfoControllerDockActionState,
+  cloneKeyInfoDockFilter,
+  createKeyInfoControllerDockCallbacks,
+} from "@/plugin/key-info-controller-dock";
+import { ActionConfig, ActionKey } from "@/plugin/actions";
 import { ProtyleLike } from "@/plugin/doc-context";
 import { resolveKeyInfoItems } from "@/plugin/key-info-state";
+import { getDocKeyInfo } from "@/services/key-info";
+import { createKeyInfoDock, KeyInfoDockHandle } from "@/ui/key-info-dock";
 
 type KeyInfoControllerDeps = {
   isMobile: () => boolean;
@@ -52,53 +53,17 @@ export class KeyInfoController {
         },
       },
       init: (dock: { element: HTMLElement }) => {
-        this.keyInfoDock = createKeyInfoDock(dock.element, {
-          onExport: () => this.exportKeyInfoMarkdown(),
-          onRefresh: () => {
-            void this.refresh();
-          },
-          onItemClick: (item) => {
-            this.handleKeyInfoItemClick(item);
-          },
-          onDocActionClick: (actionKey) => {
-            if (!isActionKey(actionKey)) {
-              return;
-            }
-            const currentDocId = this.deps.getCurrentDocId();
-            const currentProtyle = this.deps.getCurrentProtyle();
-            void this.deps.runAction(actionKey, currentDocId, currentProtyle);
-          },
-          onDocMenuToggleAll: (enabled) => {
-            void this.deps.setAllDocMenuRegistration(enabled);
-          },
-          onDocActionMenuToggle: (actionKey, enabled) => {
-            if (!isActionKey(actionKey)) {
-              return;
-            }
-            void this.deps.setSingleDocMenuRegistration(actionKey, enabled);
-          },
-          onDocActionReorder: (order) => {
-            const normalized = order.filter((key): key is ActionKey =>
-              isActionKey(key)
-            );
-            void this.deps.setDocActionOrder(normalized);
-          },
-          onDocActionOrderReset: () => {
-            void this.deps.resetDocActionOrder();
-          },
-          onDocActionFavoriteToggle: (actionKey, favorited) => {
-            if (!isActionKey(actionKey)) {
-              return;
-            }
-            void this.deps.setDocActionFavorite(actionKey, favorited);
-          },
-          onDocFavoriteActionReorder: (order) => {
-            const normalized = order.filter((key): key is ActionKey =>
-              isActionKey(key)
-            );
-            void this.deps.setDocFavoriteActionOrder(normalized);
-          },
-        });
+        this.keyInfoDock = createKeyInfoDock(
+          dock.element,
+          createKeyInfoControllerDockCallbacks({
+            deps: this.deps,
+            onExport: () => this.exportKeyInfoMarkdown(),
+            onRefresh: () => this.refresh(),
+            onItemClick: (item) => {
+              this.handleKeyInfoItemClick(item);
+            },
+          })
+        );
         this.syncDocActions();
         const active = getActiveEditor()?.protyle as ProtyleLike | undefined;
         void this.refresh(undefined, active);
@@ -122,20 +87,18 @@ export class KeyInfoController {
       return;
     }
     const registration = this.deps.getDocMenuRegistrationState();
-    this.keyInfoDock.setState({
-      docMenuRegisterAll: isAllDocMenuRegistrationEnabled(registration),
-      docActions: buildDockDocActions(
-        this.deps.actions(),
-        this.deps.isMobile(),
-        registration
-      ),
-      favoriteActionKeys: this.deps.getDocFavoriteActionKeys(),
-    });
+    this.keyInfoDock.setState(
+      buildKeyInfoControllerDockActionState({
+        actions: this.deps.actions(),
+        isMobile: this.deps.isMobile(),
+        registration,
+        favoriteActionKeys: this.deps.getDocFavoriteActionKeys(),
+      })
+    );
   }
 
   getCurrentFilter(): KeyInfoFilter | undefined {
-    const filter = this.keyInfoDock?.getState().filter;
-    return filter ? [...filter] : undefined;
+    return cloneKeyInfoDockFilter(this.keyInfoDock?.getState().filter);
   }
 
   async refresh(explicitId?: string, protyle?: ProtyleLike) {

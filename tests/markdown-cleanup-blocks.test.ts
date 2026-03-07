@@ -96,4 +96,15 @@ describe("markdown-cleanup-core (blocks)", () => {
     expect(result.deleteIds).toEqual(["b", "c", "d"]);
     expect(result.deleteCount).toBe(3);
   });
+
+  test("returns empty delete result when current block cannot be found", () => {
+    const blocks = [
+      { id: "a", type: "p", content: "A", markdown: "A" },
+      { id: "b", type: "p", content: "B", markdown: "B" },
+    ];
+
+    const result = findDeleteFromCurrentBlockIds(blocks, "missing");
+    expect(result.deleteIds).toEqual([]);
+    expect(result.deleteCount).toBe(0);
+  });
 });

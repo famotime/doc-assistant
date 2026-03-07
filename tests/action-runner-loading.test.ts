@@ -75,6 +75,7 @@ vi.mock("@/ui/dialogs", () => ({
 }));
 
 import { ActionRunner } from "@/plugin/action-runner";
+import { ACTIONS } from "@/plugin/actions";
 import {
   resetDocAssistantDebugSetting,
   setDocAssistantDebugEnabled,
@@ -155,6 +156,14 @@ describe("action-runner loading guard", () => {
     resetDocAssistantDebugSetting();
   });
 
+  test("defines a handler for every registered action", () => {
+    const runner = createRunner() as any;
+    const handlerKeys = Object.keys(runner.actionHandlers).sort();
+
+    expect(handlerKeys).toEqual(ACTIONS.map((item) => item.key).sort());
+    expect(handlerKeys.every((key) => typeof runner.actionHandlers[key] === "function")).toBe(true);
+  });
+
   test("toggles busy flag around action execution", async () => {
     let resolveExport!: (value: { mode: "md"; fileName: string }) => void;
     exportCurrentDocMarkdownMock.mockImplementation(
@@ -172,6 +181,21 @@ describe("action-runner loading guard", () => {
     resolveExport({ mode: "md", fileName: "doc-1.md" });
     await pending;
     expect(setBusy).toHaveBeenLastCalledWith(false);
+  });
+
+  test("resets busy state after handler failure and allows a later rerun", async () => {
+    exportCurrentDocMarkdownMock
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce({ mode: "md", fileName: "doc-1.md" });
+    const setBusy = vi.fn();
+    const runner = createRunner(setBusy);
+
+    await runner.runAction("export-current");
+    await runner.runAction("export-current");
+
+    expect(exportCurrentDocMarkdownMock).toHaveBeenCalledTimes(2);
+    expect(setBusy.mock.calls).toEqual([[true], [false], [true], [false]]);
+    expect(showMessageMock).toHaveBeenCalledWith("boom", 7000, "error");
   });
 
   test("blocks duplicate trigger while action is still running", async () => {
