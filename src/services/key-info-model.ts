@@ -60,7 +60,7 @@ export function splitTags(raw: string): string[] {
   return raw
     .split(/[,，\s]+/)
     .map((item) => item.trim())
-    .map((item) => item.replace(/^#+/, ""))
+    .map((item) => normalizeTagTextValue(item))
     .filter(Boolean);
 }
 
@@ -74,6 +74,67 @@ export function normalizeSort(value: number | string, fallback: number): number 
 
 export function cleanInlineText(text: string): string {
   return (text || "").replace(/\u200B/g, "").replace(/\s+/g, " ").trim();
+}
+
+export function normalizeTagTextValue(value: string): string {
+  let text = cleanInlineText(value);
+  text = text.replace(/^[#＃]+/, "");
+  text = text.replace(/[)\].,;:!?，。！？、#＃]+$/g, "");
+  return cleanInlineText(text);
+}
+
+function decodeBasicHtmlEntities(text: string): string {
+  return (text || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&amp;/gi, "&");
+}
+
+export function containsLinkTargetSyntax(source: string): boolean {
+  return /<a\b|!?\[[^\]]*?\]\([^)]+\)|\bhref\s*=|\bdata-href\s*=|zotero:\/\//i.test(
+    source || ""
+  );
+}
+
+function replaceLinksWithVisibleText(source: string): string {
+  let next = decodeBasicHtmlEntities(source || "");
+  next = next.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
+  next = next.replace(/!\[([^\]]*?)\]\([^)]+\)/g, "$1");
+  next = next.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  next = next.replace(/\[\[([^\]]+)\]\]/g, "$1");
+  next = next.replace(/<https?:\/\/[^>]+>/gi, " ");
+  return next;
+}
+
+export function normalizeInlineVisibleText(source: string): string {
+  let next = replaceLinksWithVisibleText(source || "");
+  next = next.replace(/\r?\n/g, " ");
+  next = next.replace(/`([^`]+)`/g, "$1");
+  next = next.replace(/(\*\*|__)([\s\S]+?)\1/g, "$2");
+  next = next.replace(/(\*|_)([\s\S]+?)\1/g, "$2");
+  next = next.replace(/==([\s\S]+?)==/g, "$1");
+  next = next.replace(/%%([\s\S]+?)%%/g, "$1");
+  next = next.replace(/<mark\b[^>]*>([\s\S]+?)<\/mark>/gi, "$1");
+  next = next.replace(/<strong\b[^>]*>([\s\S]+?)<\/strong>/gi, "$1");
+  next = next.replace(/<b\b[^>]*>([\s\S]+?)<\/b>/gi, "$1");
+  next = next.replace(/<em\b[^>]*>([\s\S]+?)<\/em>/gi, "$1");
+  next = next.replace(/<i\b[^>]*>([\s\S]+?)<\/i>/gi, "$1");
+  next = next.replace(/<span\b[^>]*>([\s\S]+?)<\/span>/gi, "$1");
+  next = next.replace(/<[^>]+>/g, " ");
+  return cleanInlineText(next);
+}
+
+export function normalizeInlineDisplayText(text: string, raw = ""): string {
+  if (containsLinkTargetSyntax(raw)) {
+    const normalizedFromRaw = normalizeInlineVisibleText(raw);
+    if (normalizedFromRaw) {
+      return normalizedFromRaw;
+    }
+  }
+  return normalizeInlineVisibleText(text || raw);
 }
 
 const LIST_PREFIX_PATTERN = /^\s*((?:[-+*])|(?:\d+\.))\s+/;
@@ -240,12 +301,7 @@ function collectHtmlCode(source: string): { ranges: TextRange[]; segments: strin
 }
 
 function stripLinks(source: string): string {
-  let next = source;
-  next = next.replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, " ");
-  next = next.replace(/!?\[[^\]]*?\]\([^)]+\)/g, " ");
-  next = next.replace(/\[\[[^\]]+\]\]/g, " ");
-  next = next.replace(/<https?:\/\/[^>]+>/gi, " ");
-  return next;
+  return replaceLinksWithVisibleText(source);
 }
 
 function normalizeBlockRefText(source: string): string {
@@ -317,6 +373,11 @@ export function resolveSpanFormatType(spanType: string, ial?: string): KeyInfoTy
   const normalized = [spanType, ial].filter(Boolean).join(" ").toLowerCase();
   const tokens = tokenizeType(normalized);
   const hasToken = (token: string) => tokens.includes(token);
+  const hasLinkToken =
+    hasToken("a") ||
+    hasToken("link") ||
+    normalized.includes("href=") ||
+    normalized.includes("data-href=");
   const hasInlineMemo =
     normalized.includes("inline-memo") ||
     (hasToken("inline") && hasToken("memo"));
@@ -332,13 +393,17 @@ export function resolveSpanFormatType(spanType: string, ial?: string): KeyInfoTy
   if (hasToken("em")) {
     return "italic";
   }
-  const hasHighlightToken = hasToken("mark") || hasToken("textmark") || hasToken("text");
+  const hasExplicitHighlightToken = hasToken("mark");
+  const hasGenericHighlightToken = hasToken("textmark") || hasToken("text");
   const hasSuperOrSubscriptToken =
     hasToken("sup") || hasToken("superscript") || hasToken("sub") || hasToken("subscript");
-  if (hasHighlightToken && hasSuperOrSubscriptToken) {
+  if ((hasExplicitHighlightToken || hasGenericHighlightToken) && hasSuperOrSubscriptToken) {
     return null;
   }
-  if (hasHighlightToken) {
+  if (hasExplicitHighlightToken) {
+    return "highlight";
+  }
+  if (!hasLinkToken && hasGenericHighlightToken) {
     return "highlight";
   }
   return null;

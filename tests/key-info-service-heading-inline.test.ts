@@ -541,7 +541,7 @@ describe("key-info service heading inline merge", () => {
     ).toBe(false);
   });
 
-  test("removes links from highlight and splits inline code into code type", async () => {
+  test("keeps visible link text in highlight and splits inline code into code type", async () => {
     mockKernelSql([
       {
         id: "p-1",
@@ -561,13 +561,126 @@ describe("key-info service heading inline merge", () => {
 
     expect(
       paragraphItems.some((item) => item.type === "highlight" && item.text === "官网")
-    ).toBe(false);
+    ).toBe(true);
     expect(
-      paragraphItems.some((item) => item.type === "highlight" && item.text === "示例")
+      paragraphItems.some((item) => item.type === "highlight" && item.text === "示例 文档")
     ).toBe(true);
     expect(
       paragraphItems.some((item) => item.type === "code" && item.text === "pnpm test")
     ).toBe(true);
+  });
+
+  test("does not surface zotero link annotation fragments as key info", async () => {
+    mockKernelSql(
+      [
+        {
+          id: "p-1",
+          parent_id: "doc-1",
+          sort: 1,
+          type: "p",
+          subtype: "",
+          content: "引用",
+          markdown:
+            "截至2025年9月底（[国务院. 《碳达峰碳中和的中国行动》白皮书. 2025年11月.](zotero://open-pdf/library/items/DPPC88A3?sel=p%3Anth-child(132)&annotation=5WANS33B)）",
+          memo: "",
+          tag: "",
+        },
+      ],
+      [
+        {
+          id: "s-link",
+          block_id: "p-1",
+          root_id: "doc-1",
+          content: "&annotation=5WANS33B)",
+          markdown:
+            "[国务院. 《碳达峰碳中和的中国行动》白皮书. 2025年11月.](zotero://open-pdf/library/items/DPPC88A3?sel=p%3Anth-child(132)&amp;annotation=5WANS33B)",
+          type: "a textmark",
+        },
+      ]
+    );
+
+    const result = await getDocKeyInfo("doc-1");
+    const paragraphItems = result.items.filter((item) => item.blockId === "p-1");
+
+    expect(paragraphItems.some((item) => item.text.includes("annotation=5WANS33B"))).toBe(false);
+    expect(paragraphItems.some((item) => item.text.includes("zotero://open-pdf"))).toBe(false);
+  });
+
+  test("uses visible link text for other formatted key info instead of link target", async () => {
+    mockKernelSql(
+      [
+        {
+          id: "p-1",
+          parent_id: "doc-1",
+          sort: 1,
+          type: "p",
+          subtype: "",
+          content: "引用",
+          markdown: "正文",
+          memo: "",
+          tag: "",
+        },
+      ],
+      [
+        {
+          id: "s-link-bold",
+          block_id: "p-1",
+          root_id: "doc-1",
+          content: "&annotation=ME7EFWUJ)",
+          markdown:
+            "**[文档处理插件](zotero://open-pdf/library/items/6T2NM4W3?page=22&amp;annotation=ME7EFWUJ)**",
+          type: "a strong",
+        },
+      ]
+    );
+
+    const result = await getDocKeyInfo("doc-1");
+    const paragraphItems = result.items.filter((item) => item.blockId === "p-1");
+
+    expect(
+      paragraphItems.some((item) => item.type === "bold" && item.text === "文档处理插件")
+    ).toBe(true);
+    expect(paragraphItems.some((item) => item.text.includes("annotation=ME7EFWUJ"))).toBe(false);
+  });
+
+  test("dedupes repeated same-block tag items from different extraction sources", async () => {
+    mockKernelSql(
+      [
+        {
+          id: "p-1",
+          parent_id: "doc-1",
+          sort: 1,
+          type: "p",
+          subtype: "",
+          content: "正文",
+          markdown: "#🔍待查#",
+          memo: "",
+          tag: "🔍待查",
+        },
+      ],
+      [
+        {
+          id: "s-tag-1",
+          block_id: "p-1",
+          root_id: "doc-1",
+          content: "🔍待查#",
+          markdown: "#🔍待查#",
+          type: "tag",
+          block_sort: 1,
+        },
+      ]
+    );
+
+    const result = await getDocKeyInfo("doc-1");
+    const tags = result.items.filter((item) => item.blockId === "p-1" && item.type === "tag");
+
+    expect(tags).toHaveLength(1);
+    expect(tags[0]).toEqual(
+      expect.objectContaining({
+        text: "🔍待查",
+        raw: "#🔍待查",
+      })
+    );
   });
 
   test("uses block-ref alias as highlight text instead of showing block id", async () => {

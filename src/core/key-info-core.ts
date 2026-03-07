@@ -232,7 +232,8 @@ function collectRegexMatches(
   while (match) {
     const matchRaw = match[0] || "";
     const rawSlice = original.slice(match.index, match.index + matchRaw.length) || matchRaw;
-    const cleaned = normalizeInlineText(match[groupIndex] || rawSlice);
+    const maskedGroup = match[groupIndex] || "";
+    const cleaned = normalizeInlineText(maskedGroup) || normalizeInlineText(rawSlice);
     const raw = rawBuilder ? rawBuilder(rawSlice, cleaned) : rawSlice.trim();
     if (!isFilteredKeyInfoText(type, cleaned)) {
       items.push({

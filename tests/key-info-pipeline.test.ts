@@ -80,4 +80,21 @@ describe("key-info pipeline", () => {
 
     expect(sorted.map((entry) => entry.id)).toEqual(["a", "b", "c"]);
   });
+
+  test("normalizes trailing hash tags and dedupes same-block tag items", () => {
+    const normalized = normalizeKeyInfoItemsByPipeline([
+      item("tag-1", "tag", "🔍待查#", { raw: "#🔍待查#", blockId: "p-1", order: 1 }),
+      item("tag-2", "tag", "🔍待查", { raw: "#🔍待查", blockId: "p-1", order: 2 }),
+      item("tag-3", "tag", "#🔍待查#", { raw: "#🔍待查#", blockId: "p-1", order: 3 }),
+    ]);
+
+    expect(normalized.filter((entry) => entry.type === "tag")).toEqual([
+      expect.objectContaining({
+        type: "tag",
+        text: "🔍待查",
+        raw: "#🔍待查",
+        blockId: "p-1",
+      }),
+    ]);
+  });
 });

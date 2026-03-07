@@ -2,10 +2,13 @@ import { KeyInfoItem, KeyInfoType } from "@/core/key-info-core";
 import {
   buildInlineRaw,
   cleanInlineText,
+  containsLinkTargetSyntax,
   extractInlineMemoHint,
   formatRemarkText,
+  normalizeInlineDisplayText,
   normalizeListDecoratedText,
   normalizeSort,
+  normalizeTagTextValue,
   parseInlineMemoFromText,
   resolveSpanFormatType,
   SqlSpanRow,
@@ -46,10 +49,11 @@ export function mapSpanRowsToItems(
       return;
     }
     const rawSource = (span.markdown || "").trim();
-    const content = cleanInlineText(span.content || rawSource);
+    const content = normalizeInlineDisplayText(span.content || rawSource, rawSource);
     if (!content) {
       return;
     }
+    const hasLinkTarget = containsLinkTargetSyntax(rawSource);
     const blockId = span.block_id || span.root_id;
     const blockSort =
       blockSortMap.get(blockId) ??
@@ -66,16 +70,16 @@ export function mapSpanRowsToItems(
     let text = content;
     let raw = rawSource;
     if (type === "tag") {
-      const tagText = content.replace(/^#+/, "");
+      const tagText = normalizeTagTextValue(content);
       text = tagText || content;
-      raw = raw || `#${text}`;
+      raw = hasLinkTarget ? `#${text}` : (raw || `#${text}`);
     } else if (type === "remark") {
       const memoHint = extractInlineMemoHint(span.ial);
       const memoResult = parseInlineMemoFromText(content, memoHint);
       text = formatRemarkText(memoResult.marked, memoResult.memo);
-      raw = raw || text;
+      raw = hasLinkTarget ? text : (raw || text);
     } else {
-      raw = raw || buildInlineRaw(type, text);
+      raw = hasLinkTarget ? buildInlineRaw(type, text) : (raw || buildInlineRaw(type, text));
     }
     const listLine = resolveListLine?.(blockId) || { listItem: false };
     if (listLine.listPrefix) {
@@ -142,6 +146,14 @@ export function extractInlineFromDom(
       hasToken("superscript") ||
       hasToken("sub") ||
       hasToken("subscript");
+    const hasLinkContext =
+      tagName === "a" ||
+      dataType === "a" ||
+      hasToken("a") ||
+      hasToken("link") ||
+      !!element.getAttribute("data-href") ||
+      !!element.getAttribute("href") ||
+      !!element.closest("a, [data-href], [href], [data-type='a']");
     const textContent = cleanInlineText(element.textContent || "");
     if (!textContent) {
       return;
@@ -192,13 +204,18 @@ export function extractInlineFromDom(
     } else if (
       tagName === "mark" ||
       dataType === "mark" ||
+      hasToken("mark") ||
       dataType === "textmark" ||
       dataType === "text" ||
-      hasToken("mark") ||
       hasToken("textmark") ||
       hasToken("text")
     ) {
+      const hasExplicitHighlight =
+        tagName === "mark" || dataType === "mark" || hasToken("mark");
       if (hasSuperOrSubscriptToken) {
+        return;
+      }
+      if (!hasExplicitHighlight && hasLinkContext) {
         return;
       }
       type = "highlight";

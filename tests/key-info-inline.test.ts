@@ -10,6 +10,13 @@ describe("key-info inline extraction", () => {
     expect(resolveSpanFormatType("textmark sub")).toBeNull();
   });
 
+  test("does not treat link span types as highlight unless explicit formatting exists", () => {
+    expect(resolveSpanFormatType("a textmark")).toBeNull();
+    expect(resolveSpanFormatType("a text")).toBeNull();
+    expect(resolveSpanFormatType("a strong")).toBe("bold");
+    expect(resolveSpanFormatType("a mark")).toBe("highlight");
+  });
+
   test("ignores superscript/subscript nodes in dom highlight extraction", () => {
     const root = document.createElement("div");
     root.innerHTML = `
@@ -32,5 +39,28 @@ describe("key-info inline extraction", () => {
       .filter((item) => item.type === "highlight")
       .map((item) => item.text);
     expect(highlightTexts).toEqual(["正常高亮"]);
+  });
+
+  test("ignores generic text spans inside links but keeps explicit highlight text", () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="p-1">
+        <span data-type="a" data-href="zotero://open-pdf/library/items/6T2NM4W3?page=22&amp;annotation=ME7EFWUJ">
+          <span data-type="text">&amp;annotation=ME7EFWUJ)</span>
+        </span>
+        <mark><span data-type="a" data-href="zotero://open-pdf/library/items/6T2NM4W3?page=22&amp;annotation=ME7EFWUJ">pdf</span></mark>
+      </div>
+    `;
+    const items = extractInlineFromDom(
+      { wysiwyg: { element: root } } as any,
+      new Map([
+        ["doc-1", 0],
+        ["p-1", 1],
+      ]),
+      "doc-1"
+    );
+
+    expect(items.some((item) => item.text.includes("annotation="))).toBe(false);
+    expect(items.some((item) => item.type === "highlight" && item.text === "pdf")).toBe(true);
   });
 });

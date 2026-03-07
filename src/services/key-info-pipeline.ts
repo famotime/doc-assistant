@@ -4,6 +4,7 @@ import {
   extractHighlightInlineCodeTexts,
   formatRemarkText,
   normalizeHighlightTextWithoutLinksAndCode,
+  normalizeTagTextValue,
   normalizeTitle,
   parseRemarkText,
 } from "@/services/key-info-model";
@@ -212,8 +213,39 @@ function normalizeRemarkItems(items: KeyInfoItem[]): KeyInfoItem[] {
   return deduped;
 }
 
+function normalizeTagItems(items: KeyInfoItem[]): KeyInfoItem[] {
+  const normalized: KeyInfoItem[] = [];
+  const seenByAnchor = new Set<string>();
+
+  items.forEach((item) => {
+    if (item.type !== "tag") {
+      normalized.push(item);
+      return;
+    }
+
+    const text = normalizeTagTextValue(item.text || item.raw || "");
+    if (!text) {
+      return;
+    }
+
+    const anchorKey = `${item.blockId || ""}|${item.blockSort}|${text}`;
+    if (seenByAnchor.has(anchorKey)) {
+      return;
+    }
+    seenByAnchor.add(anchorKey);
+
+    normalized.push({
+      ...item,
+      text,
+      raw: `#${text}`,
+    });
+  });
+
+  return normalized;
+}
+
 export function normalizeKeyInfoItemsByPipeline(items: KeyInfoItem[]): KeyInfoItem[] {
-  return normalizeRemarkItems(normalizeBoldItems(normalizeHighlightItems(items)));
+  return normalizeTagItems(normalizeRemarkItems(normalizeBoldItems(normalizeHighlightItems(items))));
 }
 
 export function appendDocTitleItemIfMissing(
