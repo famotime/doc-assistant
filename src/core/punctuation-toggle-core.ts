@@ -15,6 +15,11 @@ const EN_TO_ZH_PUNCTUATION_MAP: Record<string, string> = {
   "}": "｝",
   "<": "《",
   ">": "》",
+  "．": "。",
+  "［": "【",
+  "］": "】",
+  "＜": "《",
+  "＞": "》",
 };
 
 const ZH_TO_EN_PUNCTUATION_MAP: Record<string, string> = {
@@ -37,6 +42,10 @@ const ZH_TO_EN_PUNCTUATION_MAP: Record<string, string> = {
   "”": "\"",
   "‘": "'",
   "’": "'",
+  "｡": ".",
+  "､": ",",
+  "｢": "\"",
+  "｣": "\"",
 };
 
 const EN_PUNCTUATION_SET = new Set(Object.keys(EN_TO_ZH_PUNCTUATION_MAP));

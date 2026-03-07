@@ -53,6 +53,29 @@ describe("punctuation-toggle-core", () => {
     });
   });
 
+  test("normalizes fullwidth english punctuation to standard chinese fullwidth punctuation", () => {
+    const result = convertChineseEnglishPunctuation(
+      "英文［test］．中文＜标题＞",
+      "en-to-zh"
+    );
+    expect(result).toEqual({
+      next: "英文【test】。中文《标题》",
+      changedCount: 5,
+    });
+  });
+
+  test("recognizes halfwidth chinese punctuation and converts to standard english halfwidth punctuation", () => {
+    expect(detectPunctuationToggleMode("半角中文｡､")).toBe("zh-to-en");
+    const result = convertChineseEnglishPunctuation(
+      "半角中文｡逗号､引号｢内容｣",
+      "zh-to-en"
+    );
+    expect(result).toEqual({
+      next: "半角中文.逗号,引号\"内容\"",
+      changedCount: 4,
+    });
+  });
+
   test("auto toggles by detected mode", () => {
     expect(toggleChineseEnglishPunctuation("Hello, world!")).toEqual({
       mode: "en-to-zh",
