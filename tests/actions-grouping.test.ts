@@ -19,5 +19,6 @@ describe("actions grouping", () => {
     expect(groups.get("bold-selected-blocks")).toBe("edit");
     expect(groups.get("toggle-linebreaks-paragraphs")).toBe("edit");
     expect(groups.get("remove-selected-spacing")).toBe("edit");
+    expect(groups.get("toggle-selected-punctuation")).toBe("edit");
   });
 });

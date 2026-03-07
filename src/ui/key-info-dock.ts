@@ -68,6 +68,7 @@ const MOUSEDOWN_SELECTION_PRESERVED_ACTION_KEYS = new Set<string>([
   "bold-selected-blocks",
   "highlight-selected-blocks",
   "remove-selected-spacing",
+  "toggle-selected-punctuation",
   "delete-from-current-to-end",
 ]);
 

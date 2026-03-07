@@ -45,6 +45,11 @@ import { openDedupeDialog } from "@/ui/dialogs";
 import { ActionConfig, ActionKey, ACTIONS } from "@/plugin/actions";
 import { ProtyleLike } from "@/plugin/doc-context";
 import { applyBlockStyle, BlockStyle } from "@/core/markdown-style-core";
+import {
+  convertChineseEnglishPunctuation,
+  detectPunctuationToggleMode,
+  PunctuationToggleMode,
+} from "@/core/punctuation-toggle-core";
 import { createDocAssistantLogger } from "@/core/logger-core";
 import { dispatchAction, ActionHandlerMap } from "@/plugin/action-runner-dispatcher";
 import {
@@ -199,6 +204,8 @@ export class ActionRunner {
       this.handleToggleLinebreaksParagraphs(docId, protyle),
     "remove-selected-spacing": async (docId, protyle) =>
       this.handleRemoveSelectedSpacing(docId, protyle),
+    "toggle-selected-punctuation": async (docId, protyle) =>
+      this.handleToggleSelectedPunctuation(docId, protyle),
   };
 
   constructor(private readonly deps: ActionRunnerDeps) {}
@@ -606,6 +613,111 @@ export class ActionRunner {
     showMessage(`已清理 ${success} 个块，移除 ${removedCount} 个字符`, 5000, "info");
   }
 
+  private async handleToggleSelectedPunctuation(_docId: string, protyle?: ProtyleLike) {
+    const explicitSelectedIds = getExplicitlySelectedBlockIds(protyle);
+    if (!explicitSelectedIds.length) {
+      const partialResult = this.applyPartialSelectionPunctuationToggle(protyle);
+      if (partialResult.handled) {
+        if (partialResult.changedCount > 0) {
+          showMessage(`已互转选中内容标点 ${partialResult.changedCount} 处`, 5000, "info");
+        } else {
+          showMessage("选中内容未发现可互转标点", 4000, "info");
+        }
+        return;
+      }
+    }
+
+    if (explicitSelectedIds.length > 0) {
+      const selectedBlockResult = this.applySelectedBlocksPunctuationToggleFromDom(
+        protyle,
+        explicitSelectedIds
+      );
+      if (selectedBlockResult) {
+        if (selectedBlockResult.changedCount > 0) {
+          showMessage(
+            `已处理 ${selectedBlockResult.changedBlockCount} 个块，转换 ${selectedBlockResult.changedCount} 处标点`,
+            5000,
+            "info"
+          );
+        } else {
+          showMessage("选中内容未发现可互转标点", 4000, "info");
+        }
+        return;
+      }
+    }
+
+    const selectedIds = explicitSelectedIds.length
+      ? explicitSelectedIds
+      : getSelectedBlockIds(protyle);
+    if (!selectedIds.length) {
+      showMessage("未选中任何内容，请先选中后再操作", 5000, "info");
+      return;
+    }
+
+    const rows = await getBlockKramdowns(selectedIds);
+    const sourceMap = new Map(rows.map((item) => [item.id, item.kramdown || ""]));
+    const modeSourceParts: string[] = [];
+    let missingSourceCount = 0;
+    for (const id of selectedIds) {
+      const source = sourceMap.get(id);
+      if (source === undefined) {
+        missingSourceCount += 1;
+        continue;
+      }
+      modeSourceParts.push(source);
+    }
+    const mode = detectPunctuationToggleMode(modeSourceParts.join("\n"));
+
+    const updates: Array<{ id: string; next: string; changedCount: number }> = [];
+    for (const id of selectedIds) {
+      const source = sourceMap.get(id);
+      if (source === undefined) {
+        continue;
+      }
+      const converted = convertChineseEnglishPunctuation(source, mode);
+      if (converted.changedCount <= 0 || converted.next === source) {
+        continue;
+      }
+      updates.push({
+        id,
+        next: converted.next,
+        changedCount: converted.changedCount,
+      });
+    }
+
+    if (!updates.length) {
+      if (missingSourceCount > 0) {
+        showMessage(`读取块源码失败，已跳过 ${missingSourceCount} 个块`, 6000, "error");
+        return;
+      }
+      showMessage("选中内容未发现可互转标点", 4000, "info");
+      return;
+    }
+
+    let success = 0;
+    let failed = 0;
+    let changedCount = 0;
+    for (const item of updates) {
+      try {
+        await updateBlockMarkdown(item.id, item.next);
+        success += 1;
+        changedCount += item.changedCount;
+      } catch {
+        failed += 1;
+      }
+    }
+
+    if (failed > 0 || missingSourceCount > 0) {
+      showMessage(
+        `处理完成：成功 ${success} 个块，失败 ${failed} 个块，跳过 ${missingSourceCount} 个块`,
+        7000,
+        "error"
+      );
+      return;
+    }
+    showMessage(`已处理 ${success} 个块，转换 ${changedCount} 处标点`, 5000, "info");
+  }
+
   private applySelectedBlocksSpacingCleanupFromDom(
     protyle: ProtyleLike | undefined,
     selectedIds: string[]
@@ -683,6 +795,93 @@ export class ActionRunner {
     return { handled: true, removedCount };
   }
 
+  private applySelectedBlocksPunctuationToggleFromDom(
+    protyle: ProtyleLike | undefined,
+    selectedIds: string[]
+  ): { changedBlockCount: number; changedCount: number } | null {
+    const root = protyle?.wysiwyg?.element as HTMLElement | undefined;
+    if (!root || !selectedIds.length) {
+      return null;
+    }
+
+    const blockElements: HTMLElement[] = [];
+    for (const id of selectedIds) {
+      const block = this.findBlockElementById(root, id);
+      if (!block) {
+        return null;
+      }
+      blockElements.push(block);
+    }
+
+    const modeSource = blockElements
+      .map((block) => {
+        const editable =
+          (block.querySelector('[contenteditable="true"]') as HTMLElement | null) || block;
+        return editable.textContent || "";
+      })
+      .join("\n");
+    const mode = detectPunctuationToggleMode(modeSource);
+
+    let changedBlockCount = 0;
+    let changedCount = 0;
+    for (const block of blockElements) {
+      const editable =
+        (block.querySelector('[contenteditable="true"]') as HTMLElement | null) || block;
+      const changedInBlock = this.convertPunctuationInTextNodes(editable, mode);
+      if (changedInBlock > 0) {
+        changedBlockCount += 1;
+        changedCount += changedInBlock;
+        editable.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }
+    return { changedBlockCount, changedCount };
+  }
+
+  private applyPartialSelectionPunctuationToggle(
+    protyle?: ProtyleLike
+  ): { handled: boolean; changedCount: number } {
+    if (typeof window === "undefined") {
+      return { handled: false, changedCount: 0 };
+    }
+
+    const root = protyle?.wysiwyg?.element as HTMLElement | undefined;
+    if (!root) {
+      return { handled: false, changedCount: 0 };
+    }
+    const selection = window.getSelection?.();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return { handled: false, changedCount: 0 };
+    }
+
+    const range = selection.getRangeAt(0);
+    const startBlockId = this.resolveRangeBoundaryBlockId(root, range.startContainer);
+    const endBlockId = this.resolveRangeBoundaryBlockId(root, range.endContainer);
+    if (!startBlockId || !endBlockId || startBlockId !== endBlockId) {
+      return { handled: false, changedCount: 0 };
+    }
+
+    const blockElement = this.findBlockElementById(root, startBlockId);
+    if (!blockElement) {
+      return { handled: false, changedCount: 0 };
+    }
+
+    const selectedText = range.toString();
+    const mode = detectPunctuationToggleMode(selectedText);
+    const converted = convertChineseEnglishPunctuation(selectedText, mode);
+    const changedCount = converted.changedCount;
+
+    if (changedCount > 0) {
+      range.deleteContents();
+      range.insertNode(document.createTextNode(converted.next));
+      const editable =
+        (blockElement.querySelector('[contenteditable="true"]') as HTMLElement | null) ||
+        blockElement;
+      editable.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    selection.removeAllRanges();
+    return { handled: true, changedCount };
+  }
+
   private findBlockElementById(root: HTMLElement, blockId: string): HTMLElement | null {
     const nodes = root.querySelectorAll<HTMLElement>("[data-node-id]");
     for (const node of nodes) {
@@ -724,6 +923,23 @@ export class ActionRunner {
       current = walker.nextNode();
     }
     return removedCount;
+  }
+
+  private convertPunctuationInTextNodes(root: HTMLElement, mode: PunctuationToggleMode): number {
+    let changedCount = 0;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    while (current) {
+      const textNode = current as Text;
+      const source = textNode.nodeValue || "";
+      const converted = convertChineseEnglishPunctuation(source, mode);
+      if (converted.changedCount > 0) {
+        textNode.nodeValue = converted.next;
+        changedCount += converted.changedCount;
+      }
+      current = walker.nextNode();
+    }
+    return changedCount;
   }
 
   private async handleToggleLinebreaksParagraphs(docId: string, protyle?: ProtyleLike) {

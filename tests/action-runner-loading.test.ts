@@ -1211,6 +1211,54 @@ describe("action-runner loading guard", () => {
     expect(getBlockKramdownsMock).not.toHaveBeenCalled();
   });
 
+  test("toggles punctuation only inside partial text selection within a single block", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `<div data-node-id="a">前缀Hello, world!后缀</div>`;
+    document.body.appendChild(root);
+    const textNode = root.querySelector("[data-node-id='a']")?.firstChild as Text | null;
+    expect(textNode).toBeTruthy();
+
+    const source = textNode?.nodeValue || "";
+    const start = source.indexOf("Hello");
+    const end = source.indexOf("!") + 1;
+    const range = document.createRange();
+    range.setStart(textNode as Text, start);
+    range.setEnd(textNode as Text, end);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const protyle = { block: { rootID: "doc-1" }, wysiwyg: { element: root } } as any;
+    const runner = createRunner();
+
+    await runner.runAction("toggle-selected-punctuation" as any, undefined, protyle);
+
+    const blockText = root.querySelector("[data-node-id='a']")?.textContent || "";
+    expect(blockText).toBe("前缀Hello， world！后缀");
+    expect(updateBlockMarkdownMock).not.toHaveBeenCalled();
+    expect(getBlockKramdownsMock).not.toHaveBeenCalled();
+
+    selection?.removeAllRanges();
+    root.remove();
+  });
+
+  test("toggles punctuation for whole selected blocks with one shared mode", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="a" class="protyle-wysiwyg--select">你好，世界！</div>
+      <div data-node-id="b" class="protyle-wysiwyg--select">继续；测试？</div>
+    `;
+    const protyle = { block: { rootID: "doc-1" }, wysiwyg: { element: root } } as any;
+    const runner = createRunner();
+
+    await runner.runAction("toggle-selected-punctuation" as any, undefined, protyle);
+
+    expect(root.querySelector("[data-node-id='a']")?.textContent).toBe("你好,世界!");
+    expect(root.querySelector("[data-node-id='b']")?.textContent).toBe("继续;测试?");
+    expect(updateBlockMarkdownMock).not.toHaveBeenCalled();
+    expect(getBlockKramdownsMock).not.toHaveBeenCalled();
+  });
+
   test("treats data-node-selected attribute as selected block marker", async () => {
     const root = document.createElement("div");
     root.innerHTML = `

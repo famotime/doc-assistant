@@ -24,7 +24,8 @@ export type ActionKey =
   | "bold-selected-blocks"
   | "highlight-selected-blocks"
   | "toggle-linebreaks-paragraphs"
-  | "remove-selected-spacing";
+  | "remove-selected-spacing"
+  | "toggle-selected-punctuation";
 
 export type ActionConfig = {
   key: ActionKey;
@@ -58,6 +59,7 @@ const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "highlight-selected-blocks": "亮",
   "toggle-linebreaks-paragraphs": "段",
   "remove-selected-spacing": "格",
+  "toggle-selected-punctuation": "标",
   "remove-extra-blank-lines": "空",
   "clean-ai-output": "净",
   "trim-trailing-whitespace": "尾",
@@ -172,7 +174,14 @@ const BASE_ACTIONS: BaseActionConfig[] = [
     commandText: "选中内容换行-分段互转",
     menuText: "选中内容换行-分段互转",
     group: "edit",
-    icon: "iconList",
+    icon: "iconRefresh",
+  },
+  {
+    key: "toggle-selected-punctuation",
+    commandText: "选中内容中英文标点互转",
+    menuText: "选中内容中英文标点互转",
+    group: "edit",
+    icon: "iconRefresh",
   },
   {
     key: "remove-selected-spacing",

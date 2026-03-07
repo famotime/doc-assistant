@@ -23,6 +23,7 @@ describe("plugin actions", () => {
     expect(isActionKey("delete-from-current-to-end")).toBe(true);
     expect(isActionKey("toggle-linebreaks-paragraphs")).toBe(true);
     expect(isActionKey("remove-selected-spacing")).toBe(true);
+    expect(isActionKey("toggle-selected-punctuation")).toBe(true);
     expect(isActionKey("export-child-key-info-zip")).toBe(true);
     expect(isActionKey("invalid-key")).toBe(false);
   });
