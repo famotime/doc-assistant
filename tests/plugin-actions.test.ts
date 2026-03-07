@@ -14,6 +14,7 @@ describe("plugin actions", () => {
     expect(isActionKey("toggle-links-refs")).toBe(true);
     expect(isActionKey("convert-images-to-webp")).toBe(true);
     expect(isActionKey("convert-images-to-png")).toBe(true);
+    expect(isActionKey("resize-images-to-display")).toBe(true);
     expect(isActionKey("remove-doc-images")).toBe(true);
     expect(isActionKey("trim-trailing-whitespace")).toBe(true);
     expect(isActionKey("clean-ai-output")).toBe(true);

@@ -14,6 +14,7 @@ export type ActionKey =
   | "trim-trailing-whitespace"
   | "convert-images-to-webp"
   | "convert-images-to-png"
+  | "resize-images-to-display"
   | "remove-doc-images"
   | "toggle-links-refs"
   | "clean-ai-output"
@@ -50,6 +51,7 @@ const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "mark-invalid-links-refs": "标",
   "convert-images-to-webp": "图",
   "convert-images-to-png": "图",
+  "resize-images-to-display": "缩",
   "remove-doc-images": "删",
   "bold-selected-blocks": "粗",
   "highlight-selected-blocks": "亮",
@@ -209,6 +211,13 @@ const BASE_ACTIONS: BaseActionConfig[] = [
     key: "convert-images-to-png",
     commandText: "批量转换为PNG",
     menuText: "批量转换为PNG",
+    group: "image",
+    icon: "iconImage",
+  },
+  {
+    key: "resize-images-to-display",
+    commandText: "按当前显示调整图片尺寸",
+    menuText: "按当前显示调整图片尺寸",
     group: "image",
     icon: "iconImage",
   },

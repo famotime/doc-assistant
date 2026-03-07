@@ -62,6 +62,10 @@ vi.mock("@/services/image-png", () => ({
   convertDocImagesToPng: vi.fn(),
 }));
 
+vi.mock("@/services/image-display-size", () => ({
+  resizeDocImagesToDisplay: vi.fn(),
+}));
+
 vi.mock("@/services/image-remove", () => ({
   removeDocImageLinks: vi.fn(),
 }));
@@ -92,6 +96,7 @@ import {
 import { moveDocsAsChildren } from "@/services/mover";
 import { convertDocImagesToWebp } from "@/services/image-webp";
 import { convertDocImagesToPng } from "@/services/image-png";
+import { resizeDocImagesToDisplay } from "@/services/image-display-size";
 import { removeDocImageLinks } from "@/services/image-remove";
 import {
   appendBlock,
@@ -132,6 +137,7 @@ const resolveDocDirectChildBlockIdMock = vi.mocked(resolveDocDirectChildBlockId)
 const openDedupeDialogMock = vi.mocked(openDedupeDialog);
 const convertDocImagesToWebpMock = vi.mocked(convertDocImagesToWebp);
 const convertDocImagesToPngMock = vi.mocked(convertDocImagesToPng);
+const resizeDocImagesToDisplayMock = vi.mocked(resizeDocImagesToDisplay);
 const removeDocImageLinksMock = vi.mocked(removeDocImageLinks);
 
 function createRunner(setBusy?: (busy: boolean) => void) {
@@ -564,6 +570,28 @@ describe("action-runner loading guard", () => {
     expect(convertDocImagesToPngMock).toHaveBeenCalledWith("doc-1");
     expect(showMessageMock).toHaveBeenCalledWith(
       "PNG 转换完成：替换 2 处，更新 1 个块，转换 2 张（已忽略 GIF）",
+      6000,
+      "info"
+    );
+  });
+
+  test("resizes local images by current display size for current doc", async () => {
+    resizeDocImagesToDisplayMock.mockResolvedValue({
+      scannedImageCount: 2,
+      resizedImageCount: 2,
+      skippedImageCount: 0,
+      failedImageCount: 0,
+      replacedLinkCount: 3,
+      updatedBlockCount: 2,
+      totalSavedBytes: 1536,
+    });
+    const runner = createRunner();
+
+    await runner.runAction("resize-images-to-display" as any);
+
+    expect(resizeDocImagesToDisplayMock).toHaveBeenCalledWith("doc-1");
+    expect(showMessageMock).toHaveBeenCalledWith(
+      "图片尺寸调整完成：替换 3 处，更新 2 个块，缩减 2 张，节省 1.5 KB",
       6000,
       "info"
     );

@@ -8,12 +8,13 @@ describe("actions grouping", () => {
     expect(groups.get("insert-backlinks")).toBe("insert");
     expect(groups.get("insert-child-docs")).toBe("insert");
     expect(groups.get("insert-blank-before-headings")).toBe("insert");
-    expect(groups.get("mark-invalid-links-refs")).toBe("organize");
+    expect(groups.get("mark-invalid-links-refs")).toBe("insert");
     expect(groups.get("convert-images-to-webp")).toBe("image");
     expect(groups.get("convert-images-to-png")).toBe("image");
+    expect(groups.get("resize-images-to-display")).toBe("image");
     expect(groups.get("remove-doc-images")).toBe("image");
     expect(groups.get("export-child-key-info-zip")).toBe("export");
-    expect(groups.get("toggle-links-refs")).toBe("edit");
+    expect(groups.get("toggle-links-refs")).toBe("insert");
     expect(groups.get("clean-ai-output")).toBe("edit");
     expect(groups.get("bold-selected-blocks")).toBe("edit");
     expect(groups.get("toggle-linebreaks-paragraphs")).toBe("edit");

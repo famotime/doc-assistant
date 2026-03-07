@@ -51,6 +51,7 @@ import { getSelectedBlockIds, resolveCurrentBlockId } from "@/plugin/action-runn
 import { applyMarkdownTransformToBlocks } from "@/plugin/action-runner-block-transform";
 import { convertDocImagesToWebp } from "@/services/image-webp";
 import { convertDocImagesToPng } from "@/services/image-png";
+import { resizeDocImagesToDisplay } from "@/services/image-display-size";
 import { removeDocImageLinks } from "@/services/image-remove";
 
 type ActionRunnerDeps = {
@@ -168,6 +169,7 @@ export class ActionRunner {
     "trim-trailing-whitespace": async (docId) => this.handleTrimTrailingWhitespace(docId),
     "convert-images-to-webp": async (docId) => this.handleConvertImagesToWebp(docId),
     "convert-images-to-png": async (docId) => this.handleConvertImagesToPng(docId),
+    "resize-images-to-display": async (docId) => this.handleResizeImagesToDisplay(docId),
     "remove-doc-images": async (docId) => this.handleRemoveDocImages(docId),
     "toggle-links-refs": async (docId) => this.handleToggleLinksRefs(docId),
     "clean-ai-output": async (docId) => this.handleCleanAiOutput(docId),
@@ -1085,6 +1087,30 @@ export class ActionRunner {
       report.failedImageCount > 0 ? `，失败 ${report.failedImageCount} 张` : "";
     showMessage(
       `PNG 转换完成：替换 ${report.replacedLinkCount} 处，更新 ${report.updatedBlockCount} 个块，转换 ${report.convertedImageCount} 张（已忽略 GIF）${suffix}`,
+      report.failedImageCount > 0 ? 7000 : 6000,
+      report.failedImageCount > 0 ? "error" : "info"
+    );
+  }
+
+  private async handleResizeImagesToDisplay(docId: string) {
+    const report = await resizeDocImagesToDisplay(docId);
+    if (report.scannedImageCount <= 0) {
+      showMessage("当前文档未发现带显示尺寸的本地图片", 5000, "info");
+      return;
+    }
+    if (report.replacedLinkCount <= 0) {
+      if (report.failedImageCount > 0) {
+        showMessage(`未完成任何替换，失败 ${report.failedImageCount} 张图片`, 7000, "error");
+        return;
+      }
+      showMessage("未完成任何替换（可能尺寸未缩小或压缩收益不足）", 5000, "info");
+      return;
+    }
+    const savedKb = (report.totalSavedBytes / 1024).toFixed(1);
+    const suffix =
+      report.failedImageCount > 0 ? `，失败 ${report.failedImageCount} 张` : "";
+    showMessage(
+      `图片尺寸调整完成：替换 ${report.replacedLinkCount} 处，更新 ${report.updatedBlockCount} 个块，缩减 ${report.resizedImageCount} 张，节省 ${savedKb} KB${suffix}`,
       report.failedImageCount > 0 ? 7000 : 6000,
       report.failedImageCount > 0 ? "error" : "info"
     );
