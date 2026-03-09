@@ -22,6 +22,7 @@ describe("plugin actions", () => {
     expect(isActionKey("toggle-heading-bold")).toBe(true);
     expect(isActionKey("mark-invalid-links-refs")).toBe(true);
     expect(isActionKey("delete-from-current-to-end")).toBe(true);
+    expect(isActionKey("merge-selected-list-blocks")).toBe(true);
     expect(isActionKey("toggle-linebreaks-paragraphs")).toBe(true);
     expect(isActionKey("remove-selected-spacing")).toBe(true);
     expect(isActionKey("toggle-selected-punctuation")).toBe(true);

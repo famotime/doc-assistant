@@ -1170,6 +1170,74 @@ describe("action-runner loading guard", () => {
     expect(updateBlockMarkdownMock).toHaveBeenNthCalledWith(2, "b", "# Title");
   });
 
+  test("merges selected content into one list block while preserving existing list indentation", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="a" class="protyle-wysiwyg--select">A</div>
+      <div data-node-id="b" class="protyle-wysiwyg--select">B</div>
+      <div data-node-id="c" class="protyle-wysiwyg--select">C</div>
+    `;
+    const protyle = { block: { rootID: "doc-1" }, wysiwyg: { element: root } } as any;
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      { id: "a", type: "p", content: "A", markdown: "第一段", resolved: true } as any,
+      { id: "b", type: "i", content: "B", markdown: "1. 第二项", resolved: true } as any,
+      {
+        id: "c",
+        type: "NodeList",
+        content: "C",
+        markdown: "- 第三项\n  1. 第四项\n    第四项说明",
+        resolved: true,
+      } as any,
+    ]);
+    const askConfirm = vi.fn().mockResolvedValue(true);
+    const runner = new ActionRunner({
+      isMobile: () => false,
+      resolveDocId: () => "doc-1",
+      askConfirm,
+    } as any);
+
+    await runner.runAction("merge-selected-list-blocks" as any, undefined, protyle);
+
+    expect(askConfirm).toHaveBeenCalledTimes(1);
+    const confirmText = String(askConfirm.mock.calls[0]?.[1] || "");
+    expect(confirmText).toContain("范围：选中块 3 个");
+    expect(confirmText).toContain("普通段落转列表项 1 个");
+    expect(confirmText).toContain("预计更新 1 个块，删除 2 个块");
+    expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
+    expect(updateBlockMarkdownMock).toHaveBeenCalledWith(
+      "a",
+      "- 第一段\n- 第二项\n- 第三项\n  - 第四项\n    第四项说明"
+    );
+    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(2);
+    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(1, "b");
+    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(2, "c");
+  });
+
+  test("does not merge selected list blocks when confirmation is canceled", async () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div data-node-id="a" class="protyle-wysiwyg--select">A</div>
+      <div data-node-id="b" class="protyle-wysiwyg--select">B</div>
+    `;
+    const protyle = { block: { rootID: "doc-1" }, wysiwyg: { element: root } } as any;
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      { id: "a", type: "p", content: "A", markdown: "第一段", resolved: true } as any,
+      { id: "b", type: "p", content: "B", markdown: "第二段", resolved: true } as any,
+    ]);
+    const askConfirm = vi.fn().mockResolvedValue(false);
+    const runner = new ActionRunner({
+      isMobile: () => false,
+      resolveDocId: () => "doc-1",
+      askConfirm,
+    } as any);
+
+    await runner.runAction("merge-selected-list-blocks" as any, undefined, protyle);
+
+    expect(askConfirm).toHaveBeenCalledTimes(1);
+    expect(updateBlockMarkdownMock).not.toHaveBeenCalled();
+    expect(deleteBlockByIdMock).not.toHaveBeenCalled();
+  });
+
   test("strips trailing kramdown attributes from selected text block when bolding", async () => {
     const root = document.createElement("div");
     root.innerHTML = `

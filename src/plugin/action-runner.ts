@@ -1,4 +1,5 @@
 import { showMessage } from "siyuan";
+import { buildMergeSelectedListBlocksPreview } from "@/core/list-block-merge-core";
 import {
   convertSiyuanLinksAndRefsInMarkdown,
   extractSiyuanBlockIdsFromMarkdown,
@@ -175,6 +176,8 @@ export class ActionRunner {
       "mark-invalid-links-refs": async (docId) => this.handleMarkInvalidLinksRefs(docId),
       "insert-blank-before-headings": async (docId) => this.handleInsertBlankBeforeHeadings(docId),
       "toggle-heading-bold": async (docId) => this.handleToggleHeadingBold(docId),
+      "merge-selected-list-blocks": async (docId, protyle) =>
+        this.handleMergeSelectedListBlocks(docId, protyle),
       "delete-from-current-to-end": async (docId, protyle) =>
         this.handleDeleteFromCurrentToEnd(docId, protyle),
       "bold-selected-blocks": async (docId, protyle) =>
@@ -1038,6 +1041,84 @@ export class ActionRunner {
       5000,
       "info"
     );
+  }
+
+  private async handleMergeSelectedListBlocks(docId: string, protyle?: ProtyleLike) {
+    const blocks = await getChildBlocksByParentId(docId);
+    if (!blocks.length) {
+      showMessage("当前文档没有可处理的内容", 4000, "info");
+      return;
+    }
+
+    const selectedIds = getSelectedBlockIds(protyle);
+    const selectedSet = new Set(selectedIds);
+    if (!selectedIds.length) {
+      showMessage("未选中任何内容，请先选中后再操作", 5000, "info");
+      return;
+    }
+
+    const selectedBlocks = blocks.filter((block) => selectedSet.has(block.id));
+    if (!selectedBlocks.length) {
+      showMessage("未在当前文档定位到选中内容，请调整选区后重试", 5000, "error");
+      return;
+    }
+
+    const preview = buildMergeSelectedListBlocksPreview(selectedBlocks);
+    if (!preview.supportedBlockCount || !preview.updateBlockId || !preview.mergedMarkdown) {
+      showMessage("选中内容不包含可合并的段落或列表块", 5000, "info");
+      return;
+    }
+    if (!preview.hasChanges) {
+      showMessage("选中内容已是单个列表块，无需处理", 4000, "info");
+      return;
+    }
+
+    const confirmLines = [
+      `范围：选中块 ${preview.selectedBlockCount} 个`,
+      `普通段落转列表项 ${preview.paragraphBlockCount} 个`,
+      `已有列表/列表项 ${preview.listLikeBlockCount} 个`,
+      `预计生成列表项 ${preview.resultItemCount} 个`,
+      `预计更新 1 个块，删除 ${preview.deleteBlockIds.length} 个块`,
+    ];
+    if (preview.skippedBlockCount > 0) {
+      confirmLines.push(`跳过不支持块 ${preview.skippedBlockCount} 个`);
+    }
+    confirmLines.push("是否继续？");
+
+    const ok = await this.askConfirmWithVisibleDialog(
+      "确认合并列表块",
+      confirmLines.join("\n")
+    );
+    if (!ok) {
+      return;
+    }
+    this.deps.setBusy?.(true);
+
+    let failed = 0;
+    let deleted = 0;
+    try {
+      await updateBlockMarkdown(preview.updateBlockId, preview.mergedMarkdown);
+    } catch {
+      failed += 1;
+    }
+
+    if (failed === 0) {
+      for (const id of preview.deleteBlockIds) {
+        try {
+          await deleteBlockById(id);
+          deleted += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+    }
+
+    if (failed > 0) {
+      showMessage(`列表合并完成：已删除 ${deleted} 个块，失败 ${failed} 个操作`, 7000, "error");
+      return;
+    }
+
+    showMessage(`已合并为 1 个列表块，共保留 ${preview.resultItemCount} 个列表项`, 5000, "info");
   }
 
   private async handleMarkInvalidLinksRefs(docId: string) {

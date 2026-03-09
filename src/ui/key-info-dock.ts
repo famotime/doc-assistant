@@ -65,6 +65,7 @@ export type KeyInfoDockHandle = {
 };
 
 const MOUSEDOWN_SELECTION_PRESERVED_ACTION_KEYS = new Set<string>([
+  "merge-selected-list-blocks",
   "bold-selected-blocks",
   "highlight-selected-blocks",
   "remove-selected-spacing",

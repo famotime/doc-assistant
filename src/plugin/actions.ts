@@ -21,6 +21,7 @@ export type ActionKey =
   | "mark-invalid-links-refs"
   | "insert-blank-before-headings"
   | "toggle-heading-bold"
+  | "merge-selected-list-blocks"
   | "delete-from-current-to-end"
   | "bold-selected-blocks"
   | "highlight-selected-blocks"
@@ -52,6 +53,7 @@ const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "insert-child-docs": "子",
   "insert-blank-before-headings": "空",
   "toggle-heading-bold": "题",
+  "merge-selected-list-blocks": "列",
   "mark-invalid-links-refs": "标",
   "convert-images-to-webp": "图",
   "convert-images-to-png": "图",
@@ -163,6 +165,13 @@ const BASE_ACTIONS: BaseActionConfig[] = [
     menuText: "标题块加粗状态切换",
     group: "edit",
     icon: "iconBold",
+  },
+  {
+    key: "merge-selected-list-blocks",
+    commandText: "选中内容合并列表块",
+    menuText: "选中内容合并列表块",
+    group: "edit",
+    icon: "iconList",
   },
   {
     key: "bold-selected-blocks",
