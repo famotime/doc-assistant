@@ -19,6 +19,7 @@ vi.mock("@/services/key-info", () => ({
 }));
 
 import {
+  exportCurrentDocMarkdown,
   exportDocIdsAsMarkdownZip,
   exportDocAndChildKeyInfoAsZip,
 } from "@/services/exporter";
@@ -156,11 +157,44 @@ describe("export docs zip download", () => {
     });
   });
 
-  test("uses sanitized preferred title as download filename", async () => {
-    await (exportDocIdsAsMarkdownZip as any)(["doc1"], "当前/文档:标题");
+  test("prefixes current doc title into exported markdown body", async () => {
+    exportMdContentMock.mockResolvedValueOnce({
+      hPath: "/folder/当前文档",
+      content: "正文第一段\n正文第二段",
+    } as any);
+
+    const result = await exportCurrentDocMarkdown("doc1");
+
+    const blob = ((globalThis as any).URL.createObjectURL as any).mock.calls[0][0] as Blob;
+    expect(await blob.text()).toBe("# 当前文档\n\n正文第一段\n正文第二段");
 
     const anchor = (globalThis as any).document.createElement.mock.results[0].value;
-    expect(anchor.download).toBe("当前_文档_标题.zip");
+    expect(anchor.download).toBe("当前文档.md");
+    expect(result).toEqual({
+      mode: "md",
+      fileName: "当前文档.md",
+    });
+  });
+
+  test("sanitizes illegal separators but preserves Chinese quotes and em dash in filenames", async () => {
+    await (exportDocIdsAsMarkdownZip as any)(["doc1"], "当前“文档”——标题/草稿:一");
+
+    const anchor = (globalThis as any).document.createElement.mock.results[0].value;
+    expect(anchor.download).toBe("当前“文档”——标题_草稿_一.zip");
+  });
+
+  test("prefixes each exported doc title into zip markdown body", async () => {
+    exportMdContentMock.mockImplementationOnce(async () => ({
+      hPath: "/folder/批量文档",
+      content: "批量正文",
+    }));
+
+    await exportDocIdsAsMarkdownZip(["doc1"], "my-pack");
+
+    expect(putFileMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/批量文档\.md$/),
+      "# 批量文档\n\n批量正文"
+    );
   });
 
   test("exports current and child docs key info zip with filter applied", async () => {

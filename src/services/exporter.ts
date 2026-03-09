@@ -24,7 +24,7 @@ function basename(hPath: string): string {
 
 function sanitizePathSegment(name: string): string {
   const normalized = (name || "").normalize("NFKC");
-  const replaced = normalized.replace(/[^A-Za-z0-9\u4E00-\u9FFF._-]/g, "_");
+  const replaced = normalized.replace(/[^A-Za-z0-9\u4E00-\u9FFF._\-“”‘’《》〈〉「」『』【】〔〕—]/g, "_");
   const compact = replaced.replace(/_+/g, "_").replace(/^_+|_+$/g, "");
   return compact || "export";
 }
@@ -40,6 +40,21 @@ function sanitizeArchiveBaseName(name: string): string {
 function buildSafeMarkdownFileName(rawTitle: string, fallbackId: string): string {
   const safeBase = sanitizePathSegment(rawTitle || "") || fallbackId;
   return normalizeUploadFileName(`${safeBase}.md`, `${fallbackId}.md`);
+}
+
+function getExportedDocTitle(hPath: string, fallbackId: string): string {
+  return basename(hPath || fallbackId).trim() || fallbackId;
+}
+
+function prependDocTitleToMarkdown(content: string, title: string): string {
+  const normalizedTitle = (title || "").replace(/\r?\n+/g, " ").trim();
+  if (!normalizedTitle) {
+    return content || "";
+  }
+  if (!content) {
+    return `# ${normalizedTitle}\n`;
+  }
+  return `# ${normalizedTitle}\n\n${content}`;
 }
 
 function withZipExtension(name: string): string {
@@ -171,10 +186,11 @@ export async function exportCurrentDocMarkdown(
   docId: string
 ): Promise<ExportCurrentDocResult> {
   const res = await exportMdContent(docId, EXPORT_MD_OPTIONS);
-  const title = basename(res.hPath || docId);
+  const title = getExportedDocTitle(res.hPath, docId);
   const markdownName = buildSafeMarkdownFileName(title, docId);
-  const content = res.content || "";
-  const assetPaths = getExportResourceAssetPaths(content);
+  const rawContent = res.content || "";
+  const content = prependDocTitleToMarkdown(rawContent, title);
+  const assetPaths = getExportResourceAssetPaths(rawContent);
 
   if (!assetPaths.length) {
     triggerDownload(markdownName, content);
@@ -226,7 +242,7 @@ export async function exportDocIdsAsMarkdownZip(
   const uniqueDocIds = [...new Set(docIds.filter(Boolean))];
   for (const docId of uniqueDocIds) {
     const res = await exportMdContent(docId, EXPORT_MD_OPTIONS);
-    const title = basename(res.hPath || docId) || docId;
+    const title = getExportedDocTitle(res.hPath, docId);
     const safeBase = sanitizePathSegment(title) || docId;
     const markdownName = normalizeUploadFileName(`${safeBase}.md`, `${docId}.md`);
     let uniqueName = markdownName;
@@ -237,7 +253,8 @@ export async function exportDocIdsAsMarkdownZip(
     }
     usedDocNames.add(uniqueName);
 
-    const content = res.content || "";
+    const rawContent = res.content || "";
+    const content = prependDocTitleToMarkdown(rawContent, title);
     const rewrittenMarkdown = rewriteMarkdownAssetLinksToBasename(content, "assets");
     const markdownPath = `${tempDir}/${uniqueName}`;
     try {
@@ -248,7 +265,7 @@ export async function exportDocIdsAsMarkdownZip(
     }
     packPathSet.add(markdownPath);
 
-    const assetPaths = getExportResourceAssetPaths(content);
+    const assetPaths = getExportResourceAssetPaths(rawContent);
     for (const assetPath of assetPaths) {
       assetPathSet.add(assetPath);
     }
