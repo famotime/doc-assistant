@@ -16,6 +16,8 @@ type KeyInfoControllerDeps = {
   isMobile: () => boolean;
   getCurrentDocId: () => string;
   getCurrentProtyle: () => ProtyleLike | undefined;
+  getKeyInfoFilter?: () => KeyInfoFilter | undefined;
+  setKeyInfoFilter?: (filter: KeyInfoFilter) => Promise<void> | void;
   resolveDocId: (explicitId?: string, protyle?: ProtyleLike) => string;
   runAction: (action: ActionKey, explicitId?: string, protyle?: ProtyleLike) => Promise<void>;
   actions: () => ActionConfig[];
@@ -55,15 +57,24 @@ export class KeyInfoController {
       init: (dock: { element: HTMLElement }) => {
         this.keyInfoDock = createKeyInfoDock(
           dock.element,
-          createKeyInfoControllerDockCallbacks({
-            deps: this.deps,
-            onExport: () => this.exportKeyInfoMarkdown(),
-            onRefresh: () => this.refresh(),
-            onItemClick: (item) => {
-              this.handleKeyInfoItemClick(item);
+          {
+            ...createKeyInfoControllerDockCallbacks({
+              deps: this.deps,
+              onExport: () => this.exportKeyInfoMarkdown(),
+              onRefresh: () => this.refresh(),
+              onItemClick: (item) => {
+                this.handleKeyInfoItemClick(item);
+              },
+            }),
+            onFilterChange: (filter) => {
+              void this.deps.setKeyInfoFilter?.(cloneKeyInfoDockFilter(filter) || []);
             },
-          })
+          }
         );
+        const initialFilter = cloneKeyInfoDockFilter(this.deps.getKeyInfoFilter?.());
+        if (initialFilter) {
+          this.keyInfoDock.setState({ filter: initialFilter });
+        }
         this.syncDocActions();
         const active = getActiveEditor()?.protyle as ProtyleLike | undefined;
         void this.refresh(undefined, active);
@@ -98,7 +109,8 @@ export class KeyInfoController {
   }
 
   getCurrentFilter(): KeyInfoFilter | undefined {
-    return cloneKeyInfoDockFilter(this.keyInfoDock?.getState().filter);
+    return cloneKeyInfoDockFilter(this.keyInfoDock?.getState().filter)
+      || cloneKeyInfoDockFilter(this.deps.getKeyInfoFilter?.());
   }
 
   async refresh(explicitId?: string, protyle?: ProtyleLike) {

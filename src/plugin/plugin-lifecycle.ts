@@ -8,7 +8,7 @@ import {
 import {
   DocMenuRegistrationState,
 } from "@/core/doc-menu-registration-core";
-import { KeyInfoFilter } from "@/core/key-info-core";
+import { buildDefaultKeyInfoFilter, KeyInfoFilter } from "@/core/key-info-core";
 import { ActionRunner } from "@/plugin/action-runner";
 import { ACTIONS, ActionKey } from "@/plugin/actions";
 import { getProtyleDocId, ProtyleLike } from "@/plugin/doc-context";
@@ -32,6 +32,7 @@ import {
   setAllPluginDocMenuRegistration,
   setPluginDocActionFavorite,
   setPluginDocActionOrder,
+  setPluginKeyInfoFilter,
   setSinglePluginDocMenuRegistration,
 } from "@/plugin/plugin-lifecycle-state";
 import {
@@ -50,6 +51,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
   private docActionOrderState: ActionKey[] =
     buildDefaultPluginDocMenuState(ACTIONS).docActionOrderState;
   private docFavoriteActionKeys: ActionKey[] = [];
+  private keyInfoFilterState: KeyInfoFilter = buildDefaultKeyInfoFilter();
 
   private readonly actionRunner: ActionRunner = new ActionRunner({
     isMobile: () => this.isMobile,
@@ -64,6 +66,8 @@ export default class DocLinkToolkitPlugin extends Plugin {
     isMobile: () => this.isMobile,
     getCurrentDocId: () => this.currentDocId,
     getCurrentProtyle: () => this.currentProtyle,
+    getKeyInfoFilter: () => this.keyInfoFilterState,
+    setKeyInfoFilter: (filter) => this.setKeyInfoFilter(filter),
     resolveDocId: (explicitId?: string, protyle?: ProtyleLike) =>
       this.resolveDocId(explicitId, protyle),
     runAction: (action, explicitId, protyle): Promise<void> =>
@@ -223,6 +227,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
       docMenuRegistrationState: this.docMenuRegistrationState,
       docActionOrderState: this.docActionOrderState,
       docFavoriteActionKeys: this.docFavoriteActionKeys,
+      keyInfoFilterState: this.keyInfoFilterState,
     };
   }
 
@@ -230,6 +235,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
     this.docMenuRegistrationState = state.docMenuRegistrationState;
     this.docActionOrderState = state.docActionOrderState;
     this.docFavoriteActionKeys = state.docFavoriteActionKeys;
+    this.keyInfoFilterState = state.keyInfoFilterState;
   }
 
   async setAllDocMenuRegistration(enabled: boolean) {
@@ -278,5 +284,12 @@ export default class DocLinkToolkitPlugin extends Plugin {
     );
     await this.persistDocMenuRegistrationState();
     this.keyInfoController.syncDocActions();
+  }
+
+  async setKeyInfoFilter(filter: KeyInfoFilter) {
+    this.applyDocMenuState(
+      setPluginKeyInfoFilter(this.snapshotDocMenuState(), filter)
+    );
+    await this.persistDocMenuRegistrationState();
   }
 }

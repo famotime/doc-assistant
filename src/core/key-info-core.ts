@@ -11,6 +11,35 @@ export type KeyInfoType =
 
 export type KeyInfoFilter = KeyInfoType[];
 
+export const KEY_INFO_TYPES: KeyInfoType[] = [
+  "title",
+  "bold",
+  "italic",
+  "highlight",
+  "code",
+  "remark",
+  "tag",
+  "link",
+  "ref",
+];
+
+export function isKeyInfoType(value: unknown): value is KeyInfoType {
+  return typeof value === "string" && KEY_INFO_TYPES.includes(value as KeyInfoType);
+}
+
+export function buildDefaultKeyInfoFilter(): KeyInfoFilter {
+  return [...KEY_INFO_TYPES];
+}
+
+export function normalizeKeyInfoFilter(value: unknown): KeyInfoFilter {
+  if (!Array.isArray(value)) {
+    return buildDefaultKeyInfoFilter();
+  }
+
+  const normalized = value.filter((item): item is KeyInfoType => isKeyInfoType(item));
+  return Array.from(new Set(normalized));
+}
+
 export type KeyInfoExtract = {
   type: KeyInfoType;
   text: string;

@@ -10,19 +10,101 @@ const { getActiveEditorMock, showMessageMock } = vi.hoisted(() => ({
   showMessageMock: vi.fn(),
 }));
 
+const { getDocKeyInfoMock } = vi.hoisted(() => ({
+  getDocKeyInfoMock: vi.fn(),
+}));
+
 vi.mock("siyuan", () => ({
   getActiveEditor: getActiveEditorMock,
   showMessage: showMessageMock,
 }));
 
 vi.mock("@/services/key-info", () => ({
-  getDocKeyInfo: vi.fn().mockResolvedValue({
-    docTitle: "Doc 1",
-    items: [],
-  }),
+  getDocKeyInfo: getDocKeyInfoMock,
 }));
 
 describe("key-info-controller doc actions", () => {
+  test("restores persisted key info filter and reports later filter changes", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    getDocKeyInfoMock.mockResolvedValue({
+      docTitle: "Doc 1",
+      items: [
+        {
+          id: "item-bold",
+          type: "bold",
+          text: "Bold content",
+          raw: "**Bold content**",
+          blockId: "block-bold",
+          blockSort: 0,
+          order: 0,
+        },
+        {
+          id: "item-title",
+          type: "title",
+          text: "Title content",
+          raw: "# Title content",
+          blockId: "block-title",
+          blockSort: 1,
+          order: 1,
+        },
+      ],
+    });
+
+    const setKeyInfoFilter = vi.fn();
+    const controller = new KeyInfoController({
+      isMobile: () => false,
+      getCurrentDocId: () => "doc-1",
+      getCurrentProtyle: () => undefined,
+      resolveDocId: (explicitId?: string) => explicitId || "doc-1",
+      runAction: vi.fn().mockResolvedValue(undefined),
+      actions: () => [],
+      getDocMenuRegistrationState: () => ({}),
+      setAllDocMenuRegistration: () => {},
+      setSingleDocMenuRegistration: () => {},
+      setDocActionOrder: () => {},
+      resetDocActionOrder: () => {},
+      getDocFavoriteActionKeys: () => [],
+      setDocActionFavorite: () => {},
+      setDocFavoriteActionOrder: () => {},
+      getKeyInfoFilter: () => ["bold"],
+      setKeyInfoFilter,
+    } as any);
+
+    let dockConfig: any;
+    controller.registerDock({
+      addDock: (config: unknown) => {
+        dockConfig = config;
+      },
+    });
+    dockConfig.init({ element: host });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const boldFilter = host.querySelector(
+      '.doc-assistant-keyinfo__filter[data-type="bold"]'
+    ) as HTMLButtonElement | null;
+    const titleFilter = host.querySelector(
+      '.doc-assistant-keyinfo__filter[data-type="title"]'
+    ) as HTMLButtonElement | null;
+
+    expect(boldFilter?.classList.contains("is-active")).toBe(true);
+    expect(titleFilter?.classList.contains("is-active")).toBe(false);
+
+    const rowTypes = Array.from(host.querySelectorAll(".doc-assistant-keyinfo__row")).map(
+      (row) => (row as HTMLDivElement).dataset.type
+    );
+    expect(rowTypes).toEqual(["bold"]);
+
+    titleFilter?.click();
+
+    expect(setKeyInfoFilter).toHaveBeenCalledWith(["bold", "title"]);
+
+    controller.destroy();
+    host.remove();
+  });
+
   test("passes current doc context to runAction when clicking dock doc action button", async () => {
     const host = document.createElement("div");
     document.body.appendChild(host);

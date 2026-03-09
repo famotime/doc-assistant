@@ -47,6 +47,7 @@ export type KeyInfoDockCallbacks = {
   onExport: () => void;
   onRefresh?: () => void;
   onItemClick?: (item: KeyInfoItem) => void;
+  onFilterChange?: (filter: KeyInfoFilter) => void;
   onDocActionClick?: (actionKey: string) => void;
   onDocMenuToggleAll?: (enabled: boolean) => void;
   onDocActionMenuToggle?: (actionKey: string, enabled: boolean) => void;
@@ -111,9 +112,12 @@ export function createKeyInfoDock(
       setState({ activeTab: tab });
     },
     onFilterSelect: (filterKey) => {
+      let nextFilter: KeyInfoFilter;
       if (filterKey === "all") {
         const isAllActive = state.filter.length >= FILTER_TYPES.length;
-        setState({ filter: isAllActive ? [] : [...FILTER_TYPES] });
+        nextFilter = isAllActive ? [] : [...FILTER_TYPES];
+        setState({ filter: nextFilter });
+        callbacks.onFilterChange?.([...nextFilter]);
         return;
       }
       const current = new Set(state.filter);
@@ -122,7 +126,9 @@ export function createKeyInfoDock(
       } else {
         current.add(filterKey);
       }
-      setState({ filter: Array.from(current) });
+      nextFilter = Array.from(current);
+      setState({ filter: nextFilter });
+      callbacks.onFilterChange?.([...nextFilter]);
     },
     onFilterToggleExpanded: () => {
       setState({ filtersExpanded: !state.filtersExpanded });

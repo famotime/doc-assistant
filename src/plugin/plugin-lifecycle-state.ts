@@ -12,12 +12,22 @@ import {
   setSingleDocMenuRegistration as setSingleDocMenuRegistrationState,
   sortActionsByOrder,
 } from "@/core/doc-menu-registration-core";
+import {
+  buildDefaultKeyInfoFilter,
+  KeyInfoFilter,
+  normalizeKeyInfoFilter,
+} from "@/core/key-info-core";
 import { ActionConfig, ActionKey } from "@/plugin/actions";
 
 export type PluginDocMenuState = {
   docMenuRegistrationState: DocMenuRegistrationState;
   docActionOrderState: ActionKey[];
   docFavoriteActionKeys: ActionKey[];
+  keyInfoFilterState: KeyInfoFilter;
+};
+
+type PluginDocMenuStorageV1 = DocMenuRegistrationStorageV1 & {
+  keyInfoFilter?: unknown;
 };
 
 export function buildDefaultPluginDocMenuState(
@@ -27,6 +37,7 @@ export function buildDefaultPluginDocMenuState(
     docMenuRegistrationState: buildDefaultDocMenuRegistration(actions),
     docActionOrderState: buildDefaultDocActionOrder(actions),
     docFavoriteActionKeys: [],
+    keyInfoFilterState: buildDefaultKeyInfoFilter(),
   };
 }
 
@@ -38,17 +49,32 @@ export function normalizePluginDocMenuState(
     docMenuRegistrationState: normalizeDocMenuRegistration(raw, actions),
     docActionOrderState: normalizeDocActionOrder(raw, actions),
     docFavoriteActionKeys: normalizeDocFavoriteActionKeys(raw, actions),
+    keyInfoFilterState: normalizeStoredKeyInfoFilter(raw),
   };
+}
+
+function normalizeStoredKeyInfoFilter(raw: unknown): KeyInfoFilter {
+  if (!raw || typeof raw !== "object") {
+    return buildDefaultKeyInfoFilter();
+  }
+
+  const value = (raw as PluginDocMenuStorageV1).keyInfoFilter;
+  if (typeof value === "undefined") {
+    return buildDefaultKeyInfoFilter();
+  }
+
+  return normalizeKeyInfoFilter(value);
 }
 
 export function serializePluginDocMenuState(
   state: PluginDocMenuState
-): DocMenuRegistrationStorageV1 {
+): PluginDocMenuStorageV1 {
   return {
     version: 1,
     actionEnabled: state.docMenuRegistrationState,
     actionOrder: state.docActionOrderState,
     favoriteActionKeys: state.docFavoriteActionKeys,
+    keyInfoFilter: state.keyInfoFilterState,
   };
 }
 
@@ -133,5 +159,15 @@ export function reorderPluginDocFavoriteActions(
       state.docFavoriteActionKeys,
       order
     ),
+  };
+}
+
+export function setPluginKeyInfoFilter(
+  state: PluginDocMenuState,
+  filter: KeyInfoFilter
+): PluginDocMenuState {
+  return {
+    ...state,
+    keyInfoFilterState: normalizeKeyInfoFilter(filter),
   };
 }

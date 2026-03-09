@@ -1,19 +1,15 @@
-import { KeyInfoFilter, KeyInfoItem, KeyInfoType, keyInfoTypeLabel } from "@/core/key-info-core";
+import {
+  KEY_INFO_TYPES,
+  KeyInfoFilter,
+  KeyInfoItem,
+  KeyInfoType,
+  keyInfoTypeLabel,
+} from "@/core/key-info-core";
 import { DockTabKey, DOCK_TABS } from "@/core/dock-panel-core";
 
 export type FilterKey = "all" | KeyInfoType;
 
-export const FILTER_TYPES: KeyInfoType[] = [
-  "title",
-  "bold",
-  "italic",
-  "highlight",
-  "code",
-  "remark",
-  "tag",
-  "link",
-  "ref",
-];
+export const FILTER_TYPES: KeyInfoType[] = [...KEY_INFO_TYPES];
 
 export const COLLAPSIBLE_FILTER_TYPES: KeyInfoType[] = ["link", "ref", "tag"];
 

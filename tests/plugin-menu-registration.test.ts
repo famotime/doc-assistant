@@ -249,6 +249,29 @@ describe("plugin menu registration", () => {
     );
   });
 
+  test("persists key info filter changes and restores them on next load", async () => {
+    const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
+    const plugin = new DocLinkToolkitPlugin() as any;
+    await plugin.onload();
+
+    await plugin.setKeyInfoFilter(["bold", "highlight"]);
+
+    const stored = await plugin.loadData("doc-menu-registration");
+    expect(stored).toEqual(
+      expect.objectContaining({
+        version: 1,
+        keyInfoFilter: ["bold", "highlight"],
+      })
+    );
+
+    const reloadedPlugin = new DocLinkToolkitPlugin() as any;
+    await reloadedPlugin.saveData("doc-menu-registration", stored);
+
+    await reloadedPlugin.onload();
+
+    expect(reloadedPlugin.keyInfoFilterState).toEqual(["bold", "highlight"]);
+  });
+
   test("unbinds lifecycle event listeners on unload", async () => {
     const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
     const plugin = new DocLinkToolkitPlugin() as any;
