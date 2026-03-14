@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { getChildBlocksByParentId } from "@/services/kernel";
+import {
+  deleteBlocksByIds,
+  getChildBlockRefsByParentId,
+  getChildBlocksByParentId,
+} from "@/services/kernel";
 import { requestApi } from "@/services/request";
 
 vi.mock("@/services/request", () => ({
@@ -35,6 +39,33 @@ describe("kernel child blocks", () => {
       id: "doc-1",
     });
     expect(result.map((item) => item.id)).toEqual(["a", "b"]);
+  });
+
+  test("loads child block refs without extra SQL hydration", async () => {
+    requestApiMock.mockImplementation((url: string) => {
+      if (url === "/api/block/getChildBlocks") {
+        return Promise.resolve([
+          { id: "a", type: "p" },
+          { id: "a", type: "p" },
+          { id: "b", type: "h" },
+        ]);
+      }
+      if (url === "/api/query/sql") {
+        throw new Error("should not query sql");
+      }
+      return Promise.resolve([]);
+    });
+
+    const result = await getChildBlockRefsByParentId("doc-1");
+
+    expect(result).toEqual([
+      { id: "a", type: "p" },
+      { id: "b", type: "h" },
+    ]);
+    expect(requestApiMock).toHaveBeenCalledTimes(1);
+    expect(requestApiMock).toHaveBeenCalledWith("/api/block/getChildBlocks", {
+      id: "doc-1",
+    });
   });
 
   test("falls back to kramdown when SQL misses ids", async () => {
@@ -121,5 +152,55 @@ describe("kernel child blocks", () => {
     expect(result).toHaveLength(130);
     expect(result.every((item) => item.resolved === true)).toBe(true);
     expect(kramdownCalls).toBe(0);
+  });
+
+  test("deletes blocks with bounded concurrency", async () => {
+    const started: string[] = [];
+    const resolvers = new Map<string, () => void>();
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    requestApiMock.mockImplementation((url: string, data?: any) => {
+      if (url === "/api/block/deleteBlock") {
+        const id = String(data?.id || "");
+        started.push(id);
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        return new Promise<void>((resolve) => {
+          resolvers.set(id, () => {
+            inFlight -= 1;
+            resolve();
+          });
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    const pending = deleteBlocksByIds(["a", "b", "c", "d"], {
+      concurrency: 2,
+    });
+
+    await Promise.resolve();
+    expect(started).toEqual(["a", "b"]);
+
+    resolvers.get("a")?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(started).toEqual(["a", "b", "c"]);
+
+    resolvers.get("b")?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(started).toEqual(["a", "b", "c", "d"]);
+
+    resolvers.get("c")?.();
+    resolvers.get("d")?.();
+
+    const result = await pending;
+    expect(result).toEqual({
+      deletedCount: 4,
+      failedIds: [],
+    });
+    expect(maxInFlight).toBe(2);
   });
 });

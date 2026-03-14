@@ -24,9 +24,10 @@ import {
 } from "@/core/punctuation-toggle-core";
 import { resolveDocDirectChildBlockId } from "@/services/block-lineage";
 import {
-  deleteBlockById,
+  deleteBlocksByIds,
   getBlockDOMs,
   getBlockKramdowns,
+  getChildBlockRefsByParentId,
   getChildBlocksByParentId,
   getDocMetaByID,
   insertBlockBefore,
@@ -77,6 +78,7 @@ const styleLogger = createDocAssistantLogger("Style");
 const trailingWhitespaceLogger = createDocAssistantLogger("TrailingWhitespace");
 const deleteFromCurrentLogger = createDocAssistantLogger("DeleteFromCurrent");
 const INLINE_SPACE_LIKE_PATTERN = /[ \t\u00A0\u1680\u2000-\u200D\u202F\u205F\u3000\uFEFF]/gu;
+const DELETE_BLOCK_CONCURRENCY = 6;
 
 /**
  * Extracts block-level IAL lines from a cleaned kramdown string.
@@ -814,13 +816,13 @@ export class ActionRunner {
       } catch {
         failed += 1;
       }
-      for (const block of targetBlocks.slice(1)) {
-        try {
-          await deleteBlockById(block.id);
-          deleted += 1;
-        } catch {
-          failed += 1;
-        }
+      if (failed === 0) {
+        const deleteResult = await deleteBlocksByIds(
+          targetBlocks.slice(1).map((block) => block.id),
+          { concurrency: DELETE_BLOCK_CONCURRENCY }
+        );
+        deleted = deleteResult.deletedCount;
+        failed += deleteResult.failedIds.length;
       }
 
       if (failed > 0) {
@@ -929,17 +931,13 @@ export class ActionRunner {
     }
     this.deps.setBusy?.(true);
 
-    let failed = 0;
-    for (const id of result.deleteIds) {
-      try {
-        await deleteBlockById(id);
-      } catch {
-        failed += 1;
-      }
-    }
+    const deleteResult = await deleteBlocksByIds(result.deleteIds, {
+      concurrency: DELETE_BLOCK_CONCURRENCY,
+    });
+    const failed = deleteResult.failedIds.length;
 
     if (failed > 0) {
-      showMessage(`已去除 ${result.removedCount - failed} 个空段落，失败 ${failed} 个`, 6000, "error");
+      showMessage(`已去除 ${deleteResult.deletedCount} 个空段落，失败 ${failed} 个`, 6000, "error");
       return;
     }
     showMessage(`已去除 ${result.removedCount} 个空段落`, 5000, "info");
@@ -1103,14 +1101,11 @@ export class ActionRunner {
     }
 
     if (failed === 0) {
-      for (const id of preview.deleteBlockIds) {
-        try {
-          await deleteBlockById(id);
-          deleted += 1;
-        } catch {
-          failed += 1;
-        }
-      }
+      const deleteResult = await deleteBlocksByIds(preview.deleteBlockIds, {
+        concurrency: DELETE_BLOCK_CONCURRENCY,
+      });
+      deleted = deleteResult.deletedCount;
+      failed += deleteResult.failedIds.length;
     }
 
     if (failed > 0) {
@@ -1692,7 +1687,7 @@ export class ActionRunner {
       return;
     }
 
-    const blocks = await getChildBlocksByParentId(docId);
+    const blocks = await getChildBlockRefsByParentId(docId);
     if (!blocks.length) {
       showMessage("当前文档没有可处理的段落", 4000, "info");
       return;
@@ -1733,17 +1728,13 @@ export class ActionRunner {
     }
     this.deps.setBusy?.(true);
 
-    let failed = 0;
-    for (const id of result.deleteIds) {
-      try {
-        await deleteBlockById(id);
-      } catch {
-        failed += 1;
-      }
-    }
+    const deleteResult = await deleteBlocksByIds(result.deleteIds, {
+      concurrency: DELETE_BLOCK_CONCURRENCY,
+    });
+    const failed = deleteResult.failedIds.length;
 
     if (failed > 0) {
-      showMessage(`已删除 ${result.deleteCount - failed} 个段落，失败 ${failed} 个`, 6000, "error");
+      showMessage(`已删除 ${deleteResult.deletedCount} 个段落，失败 ${failed} 个`, 6000, "error");
       return;
     }
     showMessage(`已删除 ${result.deleteCount} 个段落`, 5000, "info");

@@ -5,11 +5,13 @@ import { escapeSqlLiteral, inClause, sql } from "@/services/kernel-shared";
 
 export {
   appendBlock,
+  deleteBlocksByIds,
   deleteBlockById,
   getBlockDOM,
   getBlockDOMs,
   getBlockKramdown,
   getBlockKramdowns,
+  getChildBlockRefsByParentId,
   getChildBlocksByParentId,
   insertBlockBefore,
   updateBlockDom,
@@ -33,7 +35,11 @@ export {
   mapBlockIdsToRootDocIds,
 } from "@/services/kernel-ref";
 export { sql } from "@/services/kernel-shared";
-export type { ChildBlockMeta } from "@/services/kernel-block";
+export type {
+  ChildBlockMeta,
+  ChildBlockRef,
+  DeleteBlocksResult,
+} from "@/services/kernel-block";
 export type { FileTreeDoc, PathInfo } from "@/services/kernel-file";
 
 type BacklinkPath = {

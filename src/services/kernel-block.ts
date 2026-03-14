@@ -22,6 +22,11 @@ type ChildBlockListItem = {
   subtype?: string;
 };
 
+export type ChildBlockRef = {
+  id: string;
+  type: string;
+};
+
 type SqlChildBlockRow = {
   id: string;
   type: string;
@@ -38,8 +43,30 @@ export type ChildBlockMeta = {
   resolved?: boolean;
 };
 
+export type DeleteBlocksResult = {
+  deletedCount: number;
+  failedIds: string[];
+};
+
 const styleLogger = createDocAssistantLogger("Style");
 const blankLinesLogger = createDocAssistantLogger("BlankLines");
+
+function toOrderedChildBlockRefs(childList: ChildBlockListItem[] | null | undefined): ChildBlockRef[] {
+  const seen = new Set<string>();
+  return (childList || [])
+    .map((item) => ({
+      id: item?.id || "",
+      type: item?.type || "",
+    }))
+    .filter((item) => item.id)
+    .filter((item) => {
+      if (seen.has(item.id)) {
+        return false;
+      }
+      seen.add(item.id);
+      return true;
+    });
+}
 
 function toBlockKramdownRows(payload: unknown): BlockKramdownRes[] {
   return parseKernelTextRows(payload, "kramdown").map((row) => ({
@@ -188,6 +215,47 @@ export async function deleteBlockById(id: string): Promise<void> {
   await requestApi("/api/block/deleteBlock", { id });
 }
 
+export async function deleteBlocksByIds(
+  ids: string[],
+  options?: { concurrency?: number }
+): Promise<DeleteBlocksResult> {
+  const normalizedIds = ids.map((id) => (id || "").trim()).filter(Boolean);
+  if (!normalizedIds.length) {
+    return {
+      deletedCount: 0,
+      failedIds: [],
+    };
+  }
+
+  const concurrency = Math.max(
+    1,
+    Math.min(normalizedIds.length, Math.floor(options?.concurrency || 4))
+  );
+  let nextIndex = 0;
+  let deletedCount = 0;
+  const failedIds: string[] = [];
+
+  async function worker() {
+    while (nextIndex < normalizedIds.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      const id = normalizedIds[currentIndex];
+      try {
+        await deleteBlockById(id);
+        deletedCount += 1;
+      } catch {
+        failedIds.push(id);
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  return {
+    deletedCount,
+    failedIds,
+  };
+}
+
 export async function updateBlockMarkdown(
   id: string,
   data: string
@@ -219,20 +287,11 @@ export async function getChildBlocksByParentId(
   const childList = await requestApi<ChildBlockListItem[]>("/api/block/getChildBlocks", {
     id: parentId,
   });
+  const orderedRefs = toOrderedChildBlockRefs(childList);
   const childTypeMap = new Map(
-    (childList || []).map((item) => [item?.id || "", item?.type || ""])
+    orderedRefs.map((item) => [item.id, item.type])
   );
-  const seen = new Set<string>();
-  const orderedIds = (childList || [])
-    .map((item) => item?.id || "")
-    .filter(Boolean)
-    .filter((id) => {
-      if (seen.has(id)) {
-        return false;
-      }
-      seen.add(id);
-      return true;
-    });
+  const orderedIds = orderedRefs.map((item) => item.id);
   if (!orderedIds.length) {
     blankLinesLogger.debug("child blocks empty", {
       parentId,
@@ -289,4 +348,16 @@ export async function getChildBlocksByParentId(
   return orderedIds
     .map((id) => rowMap.get(id))
     .filter((row): row is ChildBlockMeta => !!row);
+}
+
+export async function getChildBlockRefsByParentId(
+  parentId: string
+): Promise<ChildBlockRef[]> {
+  if (!parentId) {
+    return [];
+  }
+  const childList = await requestApi<ChildBlockListItem[]>("/api/block/getChildBlocks", {
+    id: parentId,
+  });
+  return toOrderedChildBlockRefs(childList);
 }

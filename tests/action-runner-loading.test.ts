@@ -21,9 +21,11 @@ vi.mock("@/services/exporter", () => ({
 
 vi.mock("@/services/kernel", () => ({
   appendBlock: vi.fn(),
+  deleteBlocksByIds: vi.fn(),
   deleteBlockById: vi.fn(),
   getBlockDOM: vi.fn(),
   getBlockDOMs: vi.fn(),
+  getChildBlockRefsByParentId: vi.fn(),
   getBlockKramdowns: vi.fn(),
   getChildBlocksByParentId: vi.fn(),
   getDocMetaByID: vi.fn(),
@@ -101,10 +103,12 @@ import { resizeDocImagesToDisplay } from "@/services/image-display-size";
 import { removeDocImageLinks } from "@/services/image-remove";
 import {
   appendBlock,
+  deleteBlocksByIds,
   deleteBlockById,
   getBlockDOM,
   getBlockDOMs,
   getBlockKramdowns,
+  getChildBlockRefsByParentId,
   getChildBlocksByParentId,
   getDocMetaByID,
   insertBlockBefore,
@@ -117,10 +121,12 @@ const exportCurrentDocMarkdownMock = vi.mocked(exportCurrentDocMarkdown);
 const exportDocAndChildKeyInfoAsZipMock = vi.mocked(exportDocAndChildKeyInfoAsZip);
 const deleteDocsByIdsMock = vi.mocked(deleteDocsByIds);
 const deleteBlockByIdMock = vi.mocked(deleteBlockById);
+const deleteBlocksByIdsMock = vi.mocked(deleteBlocksByIds);
 const appendBlockMock = vi.mocked(appendBlock);
 const getBlockDOMMock = vi.mocked(getBlockDOM);
 const getBlockDOMsMock = vi.mocked(getBlockDOMs);
 const getBlockKramdownsMock = vi.mocked(getBlockKramdowns);
+const getChildBlockRefsByParentIdMock = vi.mocked(getChildBlockRefsByParentId);
 const getChildBlocksByParentIdMock = vi.mocked(getChildBlocksByParentId);
 const getDocMetaByIDMock = vi.mocked(getDocMetaByID);
 const getBacklinkDocsMock = vi.mocked(getBacklinkDocs);
@@ -275,6 +281,25 @@ describe("action-runner loading guard", () => {
     resolveConfirm(false);
     await pending;
     expect(setBusy).toHaveBeenLastCalledWith(false);
+  });
+
+  test("removes extra blank lines through batched delete helper", async () => {
+    getChildBlocksByParentIdMock.mockResolvedValue([
+      { id: "a", type: "p", content: "", markdown: "", resolved: true } as any,
+      { id: "b", type: "p", content: "正文", markdown: "正文", resolved: true } as any,
+      { id: "c", type: "p", content: "", markdown: "", resolved: true } as any,
+    ]);
+    deleteBlocksByIdsMock.mockResolvedValue({
+      deletedCount: 2,
+      failedIds: [],
+    });
+    const runner = createRunner();
+
+    await runner.runAction("remove-extra-blank-lines" as any);
+
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["a", "c"], { concurrency: 6 });
+    expect(deleteBlockByIdMock).not.toHaveBeenCalled();
+    expect(showMessageMock).toHaveBeenCalledWith("已去除 2 个空段落", 5000, "info");
   });
 
   test("inserts blank paragraphs before headings that are missing one", async () => {
@@ -450,6 +475,7 @@ describe("action-runner loading guard", () => {
       } as any,
     ]);
     const askConfirm = vi.fn().mockResolvedValue(true);
+    updateBlockMarkdownMock.mockResolvedValue(undefined);
     const runner = new ActionRunner({
       isMobile: () => false,
       resolveDocId: () => "doc-1",
@@ -953,28 +979,30 @@ describe("action-runner loading guard", () => {
   });
 
   test("deletes all blocks from current block to end", async () => {
-    getChildBlocksByParentIdMock.mockResolvedValue([
-      { id: "a", type: "p", content: "A", markdown: "A", resolved: true } as any,
-      { id: "b", type: "p", content: "B", markdown: "B", resolved: true } as any,
-      { id: "c", type: "h", content: "C", markdown: "## C", resolved: true } as any,
+    getChildBlockRefsByParentIdMock.mockResolvedValue([
+      { id: "a", type: "p" } as any,
+      { id: "b", type: "p" } as any,
+      { id: "c", type: "h" } as any,
     ]);
+    deleteBlocksByIdsMock.mockResolvedValue({ deletedCount: 2, failedIds: [] });
     const runner = createRunner();
     const protyle = { block: { rootID: "doc-1", id: "b" } } as any;
 
     await runner.runAction("delete-from-current-to-end" as any, undefined, protyle);
 
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(2);
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(1, "b");
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(2, "c");
+    expect(getChildBlocksByParentIdMock).not.toHaveBeenCalled();
+    expect(getChildBlockRefsByParentIdMock).toHaveBeenCalledWith("doc-1");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b", "c"], { concurrency: 6 });
     expect(showMessageMock).toHaveBeenCalledWith("已删除 2 个段落", 5000, "info");
   });
 
   test("falls back to active editor block id when protyle is missing", async () => {
-    getChildBlocksByParentIdMock.mockResolvedValue([
-      { id: "a", type: "p", content: "A", markdown: "A", resolved: true } as any,
-      { id: "b", type: "p", content: "B", markdown: "B", resolved: true } as any,
-      { id: "c", type: "p", content: "C", markdown: "C", resolved: true } as any,
+    getChildBlockRefsByParentIdMock.mockResolvedValue([
+      { id: "a", type: "p" } as any,
+      { id: "b", type: "p" } as any,
+      { id: "c", type: "p" } as any,
     ]);
+    deleteBlocksByIdsMock.mockResolvedValue({ deletedCount: 2, failedIds: [] });
     getActiveEditorMock.mockReturnValue({
       protyle: { block: { id: "b" } },
     });
@@ -982,17 +1010,16 @@ describe("action-runner loading guard", () => {
 
     await runner.runAction("delete-from-current-to-end" as any);
 
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(2);
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(1, "b");
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(2, "c");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b", "c"], { concurrency: 6 });
   });
 
   test("maps nested current block to direct child block before deleting", async () => {
-    getChildBlocksByParentIdMock.mockResolvedValue([
-      { id: "a", type: "p", content: "A", markdown: "A", resolved: true } as any,
-      { id: "b", type: "l", content: "", markdown: "", resolved: true } as any,
-      { id: "c", type: "p", content: "C", markdown: "C", resolved: true } as any,
+    getChildBlockRefsByParentIdMock.mockResolvedValue([
+      { id: "a", type: "p" } as any,
+      { id: "b", type: "l" } as any,
+      { id: "c", type: "p" } as any,
     ]);
+    deleteBlocksByIdsMock.mockResolvedValue({ deletedCount: 2, failedIds: [] });
     resolveDocDirectChildBlockIdMock.mockResolvedValue("b");
     const runner = createRunner();
     const protyle = { block: { rootID: "doc-1", id: "b-sub-1" } } as any;
@@ -1000,17 +1027,16 @@ describe("action-runner loading guard", () => {
     await runner.runAction("delete-from-current-to-end" as any, undefined, protyle);
 
     expect(resolveDocDirectChildBlockIdMock).toHaveBeenCalledWith("doc-1", "b-sub-1");
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(2);
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(1, "b");
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(2, "c");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b", "c"], { concurrency: 6 });
   });
 
   test("ignores doc id as current block and falls back to active editor block", async () => {
-    getChildBlocksByParentIdMock.mockResolvedValue([
-      { id: "a", type: "p", content: "A", markdown: "A", resolved: true } as any,
-      { id: "b", type: "p", content: "B", markdown: "B", resolved: true } as any,
-      { id: "c", type: "p", content: "C", markdown: "C", resolved: true } as any,
+    getChildBlockRefsByParentIdMock.mockResolvedValue([
+      { id: "a", type: "p" } as any,
+      { id: "b", type: "p" } as any,
+      { id: "c", type: "p" } as any,
     ]);
+    deleteBlocksByIdsMock.mockResolvedValue({ deletedCount: 2, failedIds: [] });
     getActiveEditorMock.mockReturnValue({
       protyle: { block: { id: "b" } },
     });
@@ -1019,9 +1045,7 @@ describe("action-runner loading guard", () => {
 
     await runner.runAction("delete-from-current-to-end" as any, undefined, protyle);
 
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(2);
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(1, "b");
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(2, "c");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b", "c"], { concurrency: 6 });
   });
 
   test("shows locate error when both provided and active ids are doc id", async () => {
@@ -1092,6 +1116,7 @@ describe("action-runner loading guard", () => {
       { id: "h3", type: "h", markdown: "### 标题三", resolved: true } as any,
     ]);
     const askConfirm = vi.fn().mockResolvedValue(true);
+    updateBlockMarkdownMock.mockResolvedValue(undefined);
     const runner = new ActionRunner({
       isMobile: () => false,
       resolveDocId: () => "doc-1",
@@ -1118,6 +1143,7 @@ describe("action-runner loading guard", () => {
       { id: "h2", type: "h", markdown: "## 标题二 {: id=\"h2\"}", resolved: true } as any,
     ]);
     const askConfirm = vi.fn().mockResolvedValue(true);
+    updateBlockMarkdownMock.mockResolvedValue(undefined);
     const runner = new ActionRunner({
       isMobile: () => false,
       resolveDocId: () => "doc-1",
@@ -1190,6 +1216,7 @@ describe("action-runner loading guard", () => {
       } as any,
     ]);
     const askConfirm = vi.fn().mockResolvedValue(true);
+    updateBlockMarkdownMock.mockResolvedValue(undefined);
     const runner = new ActionRunner({
       isMobile: () => false,
       resolveDocId: () => "doc-1",
@@ -1208,9 +1235,8 @@ describe("action-runner loading guard", () => {
       "a",
       "- 第一段\n- 第二项\n- 第三项\n  - 第四项\n    第四项说明"
     );
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(2);
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(1, "b");
-    expect(deleteBlockByIdMock).toHaveBeenNthCalledWith(2, "c");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b", "c"], { concurrency: 6 });
+    expect(deleteBlockByIdMock).not.toHaveBeenCalled();
   });
 
   test("does not merge selected list blocks when confirmation is canceled", async () => {
@@ -1235,6 +1261,7 @@ describe("action-runner loading guard", () => {
 
     expect(askConfirm).toHaveBeenCalledTimes(1);
     expect(updateBlockMarkdownMock).not.toHaveBeenCalled();
+    expect(deleteBlocksByIdsMock).not.toHaveBeenCalled();
     expect(deleteBlockByIdMock).not.toHaveBeenCalled();
   });
 
@@ -1463,6 +1490,7 @@ describe("action-runner loading guard", () => {
       { id: "b", type: "p", content: "B", markdown: "保持不变", resolved: true } as any,
     ]);
     const askConfirm = vi.fn().mockResolvedValue(true);
+    updateBlockMarkdownMock.mockResolvedValue(undefined);
     const runner = new ActionRunner({
       isMobile: () => false,
       resolveDocId: () => "doc-1",
@@ -1531,8 +1559,8 @@ describe("action-runner loading guard", () => {
     expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：分段转换行");
     expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
     expect(updateBlockMarkdownMock).toHaveBeenCalledWith("a", "第一段\n第二段");
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(1);
-    expect(deleteBlockByIdMock).toHaveBeenCalledWith("b");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b"], { concurrency: 6 });
+    expect(deleteBlockByIdMock).not.toHaveBeenCalled();
   });
 
   test("treats NodeParagraph blocks as mergeable paragraph blocks", async () => {
@@ -1559,8 +1587,8 @@ describe("action-runner loading guard", () => {
     expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：分段转换行");
     expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
     expect(updateBlockMarkdownMock).toHaveBeenCalledWith("a", "第一段\n第二段");
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(1);
-    expect(deleteBlockByIdMock).toHaveBeenCalledWith("b");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b"], { concurrency: 6 });
+    expect(deleteBlockByIdMock).not.toHaveBeenCalled();
   });
 
   test("merges selected unordered list item blocks", async () => {
@@ -1587,8 +1615,8 @@ describe("action-runner loading guard", () => {
     expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：分段转换行");
     expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
     expect(updateBlockMarkdownMock).toHaveBeenCalledWith("a", "- 第一项\n- 第二项");
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(1);
-    expect(deleteBlockByIdMock).toHaveBeenCalledWith("b");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b"], { concurrency: 6 });
+    expect(deleteBlockByIdMock).not.toHaveBeenCalled();
   });
 
   test("merges selected ordered list item blocks", async () => {
@@ -1615,8 +1643,8 @@ describe("action-runner loading guard", () => {
     expect(String(askConfirm.mock.calls[0]?.[1] || "")).toContain("模式：分段转换行");
     expect(updateBlockMarkdownMock).toHaveBeenCalledTimes(1);
     expect(updateBlockMarkdownMock).toHaveBeenCalledWith("a", "1. 第一项\n2. 第二项");
-    expect(deleteBlockByIdMock).toHaveBeenCalledTimes(1);
-    expect(deleteBlockByIdMock).toHaveBeenCalledWith("b");
+    expect(deleteBlocksByIdsMock).toHaveBeenCalledWith(["b"], { concurrency: 6 });
+    expect(deleteBlockByIdMock).not.toHaveBeenCalled();
   });
 
   test("shows prompt only and does nothing when no block is selected", async () => {
