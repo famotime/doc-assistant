@@ -6,16 +6,6 @@
 - 展示名称：`文档助手 / Doc Assist`
 - 最低思源版本：`3.5.7`
 
-## Development & Docs
-
-- Common commands: `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm test`, `pnpm typecheck:strict`
-- Structure snapshot: `docs/project-structure.md`
-- Refactor plan and progress: `docs/refactor-plan.md`
-- Action runner structure: `src/plugin/action-runner.ts` keeps runtime guards and dispatch, while `src/plugin/action-runner-*-handlers.ts` carries grouped action logic.
-- Lifecycle structure: `src/plugin/plugin-lifecycle.ts` remains the composition root, while `src/plugin/plugin-lifecycle-menu.ts` and `src/plugin/plugin-lifecycle-state.ts` own menu composition and persisted menu state.
-- Key-info structure: `src/plugin/key-info-controller.ts` keeps refresh/navigation/export orchestration, `src/plugin/key-info-controller-dock.ts` bridges dock callbacks, and `src/ui/key-info-dock-controls.ts` builds the dock control shell.
-- Cleanup structure: `src/core/markdown-cleanup-core.ts` now stays as the public facade, while `src/core/markdown-cleanup-text-core.ts`, `src/core/markdown-cleanup-ai-core.ts`, and `src/core/markdown-cleanup-block-core.ts` carry the internal transform families.
-
 ## 功能总览
 
 插件安装后会生成一个侧边栏，目前主要提供两大类功能：
@@ -29,7 +19,7 @@
 
 ![image](https://github.com/famotime/siyuan-doc-assist/blob/main/assets/image-20260222174322-tnvviaq.png?raw=1)
 
-多说一句，集市里有一个叫“关键信息导航”的插件，提供类似的功能。但我试用了有问题，很多文档的加粗内容显示不全，顺序跟原文也不一致，好像还不支持导出，作者也有几个月没更新了，所以就自己折腾一个。
+
 
 ### 2. 文档处理
 
