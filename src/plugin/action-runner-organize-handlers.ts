@@ -2,6 +2,7 @@ import { showMessage } from "siyuan";
 import { deleteDocsByIds, findDuplicateCandidates } from "@/services/dedupe";
 import { appendBlock } from "@/services/kernel";
 import { getBacklinkDocs, getForwardLinkedDocIds } from "@/services/link-resolver";
+import { createTop100LargeDocumentsReport } from "@/services/large-documents-report";
 import { moveDocsAsChildren } from "@/services/mover";
 import { createOpenedDocsSummaryDoc } from "@/services/open-doc-summary";
 import { PartialActionHandlerMap } from "@/plugin/action-runner-dispatcher";
@@ -125,6 +126,12 @@ export function createOrganizeActionHandlers(
       const summary = await createOpenedDocsSummaryDoc(docId);
       openDocByProtocol(summary.id);
       showMessage(`已生成汇总页，包含 ${summary.docCount} 篇已打开文档`, 5000, "info");
+    },
+    "create-top100-large-documents-report": async (docId) => {
+      const result = await createTop100LargeDocumentsReport({
+        currentDocId: docId,
+      });
+      showMessage(`已输出 Top100 大文件清单：${result.title}（${result.docCount} 篇）`, 5000, "info");
     },
     dedupe: async (docId) => {
       const candidates = await findDuplicateCandidates(docId, 0.85);

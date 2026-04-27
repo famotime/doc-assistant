@@ -106,8 +106,9 @@ export default class DocLinkToolkitPlugin extends Plugin {
     setKeyInfoFilter: (filter) => this.setKeyInfoFilter(filter),
     resolveDocId: (explicitId?: string, protyle?: ProtyleLike) =>
       this.resolveDocId(explicitId, protyle),
-    runAction: (action, explicitId, protyle): Promise<void> =>
-      this.actionRunner.runAction(action, explicitId, protyle),
+    runAction: async (action, explicitId, protyle): Promise<void> => {
+      await this.actionRunner.runAction(action, explicitId, protyle);
+    },
     actions: () => this.getOrderedActions(),
     getDocMenuRegistrationState: () => this.docMenuRegistrationState,
     setAllDocMenuRegistration: (enabled) => this.setAllDocMenuRegistration(enabled),
@@ -159,8 +160,9 @@ export default class DocLinkToolkitPlugin extends Plugin {
       protyle: detail.protyle,
       actions: this.getOrderedActions(),
       docMenuRegistrationState: this.docMenuRegistrationState,
-      runAction: (action, explicitId, protyle) =>
-        this.actionRunner.runAction(action, explicitId, protyle),
+      runAction: async (action, explicitId, protyle) => {
+        await this.actionRunner.runAction(action, explicitId, protyle);
+      },
     });
   };
 
@@ -180,8 +182,9 @@ export default class DocLinkToolkitPlugin extends Plugin {
     registerPluginCommands({
       actions: this.getOrderedActions(),
       register: (config) => this.addCommand(config),
-      runAction: (action, explicitId, protyle) =>
-        this.actionRunner.runAction(action, explicitId, protyle),
+      runAction: async (action, explicitId, protyle) => {
+        await this.actionRunner.runAction(action, explicitId, protyle);
+      },
     });
   }
 

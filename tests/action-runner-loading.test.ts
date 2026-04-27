@@ -95,6 +95,10 @@ vi.mock("@/services/monthly-diary", () => ({
   createMonthlyDiaryDoc: vi.fn(),
 }));
 
+vi.mock("@/services/large-documents-report", () => ({
+  createTop100LargeDocumentsReport: vi.fn(),
+}));
+
 import { ActionRunner } from "@/plugin/action-runner";
 import { ACTIONS } from "@/plugin/actions";
 import {
@@ -147,6 +151,7 @@ import {
 } from "@/services/ai-slop-marker";
 import { openDedupeDialog } from "@/ui/dialogs";
 import { createMonthlyDiaryDoc } from "@/services/monthly-diary";
+import { createTop100LargeDocumentsReport } from "@/services/large-documents-report";
 
 const exportCurrentDocMarkdownMock = vi.mocked(exportCurrentDocMarkdown);
 const exportDocAndChildDocsAsMarkdownZipMock = vi.mocked(exportDocAndChildDocsAsMarkdownZip);
@@ -190,6 +195,7 @@ const generateDocumentConceptMapMock = vi.mocked(
 const detectIrrelevantParagraphIdsMock = vi.mocked(detectIrrelevantParagraphIds);
 const detectKeyContentParagraphHighlightsMock = vi.mocked(detectKeyContentParagraphHighlights);
 const createMonthlyDiaryDocMock = vi.mocked(createMonthlyDiaryDoc);
+const createTop100LargeDocumentsReportMock = vi.mocked(createTop100LargeDocumentsReport);
 
 function createRunner(setBusy?: (busy: boolean) => void) {
   return new ActionRunner({
@@ -587,6 +593,27 @@ describe("action-runner loading guard", () => {
       template: "## {{date}} {{weekday}}\n\n- 记录",
     });
     expect(showMessageMock).toHaveBeenCalledWith("已创建本月日记：2026-04 月记（30 天）", 5000, "info");
+  });
+
+  test("runs the large documents report action and shows success message", async () => {
+    createTop100LargeDocumentsReportMock.mockResolvedValue({
+      id: "report-doc",
+      title: "Top100大文件清单-20260427-153015",
+      path: "/daily/2026/04/Top100大文件清单-20260427-153015",
+      docCount: 100,
+    });
+    const runner = createRunner();
+
+    await runner.runAction("create-top100-large-documents-report" as any);
+
+    expect(createTop100LargeDocumentsReportMock).toHaveBeenCalledWith({
+      currentDocId: "doc-1",
+    });
+    expect(showMessageMock).toHaveBeenCalledWith(
+      "已输出 Top100 大文件清单：Top100大文件清单-20260427-153015（100 篇）",
+      5000,
+      "info"
+    );
   });
 
   test("inserts ai summary before the first paragraph by default", async () => {

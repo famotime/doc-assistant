@@ -11,7 +11,7 @@
 | 目录 | 文件数 | 说明 |
 | --- | ---: | --- |
 | `src/` | 107 | 插件源码 |
-| `src/core/` | 26 | 纯逻辑与转换规则 |
+| `src/core/` | 27 | 纯逻辑与转换规则 |
 | `src/plugin/` | 23 | 生命周期、动作编排、控制器 |
 | `src/services/` | 38 | Kernel / 文件系统 / AI / 导出服务 |
 | `src/ui/` | 12 | Dock、Dialog、Setting 面板 UI |
@@ -74,7 +74,7 @@
 | `src/index.ts` | 加载全局样式并导出 `plugin-lifecycle` |
 | `src/index.scss` | 插件全局样式 |
 
-### 4.3 `src/core/`（26 个文件）
+### 4.3 `src/core/`（27 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
@@ -91,6 +91,7 @@
 | `src/core/key-info-core.ts` | 关键内容类型、提取辅助与 Markdown 渲染 |
 | `src/core/key-info-scroll-core.ts` | 关键内容滚动状态与渲染后动作 |
 | `src/core/key-info-scroll-lock-core.ts` | 编程滚动与用户滚动锁协调 |
+| `src/core/large-documents-report-core.ts` | Top100 大文件清单的排序、字节格式化与 Markdown 表格生成 |
 | `src/core/link-core.ts` | 链接/引用互转、失效标记、块 ID 提取 |
 | `src/core/list-block-merge-core.ts` | 多个段落/列表块合并为单列表块的预览与拼装 |
 | `src/core/logger-core.ts` | 作用域日志封装 |
@@ -117,7 +118,7 @@
 | `src/plugin/action-runner-export-handlers.ts` | 导出动作处理器 |
 | `src/plugin/action-runner-insert-handlers.ts` | 插入反链/子文档列表、本月日记创建等动作处理器 |
 | `src/plugin/action-runner-media-handlers.ts` | 图片转换、移除等媒体动作处理器 |
-| `src/plugin/action-runner-organize-handlers.ts` | 去重、移动、打开汇总页等整理类动作处理器 |
+| `src/plugin/action-runner-organize-handlers.ts` | 去重、移动、打开汇总页与大文件清单等整理类动作处理器 |
 | `src/plugin/action-runner-selection-handlers.ts` | 选区/选中块动作处理器，如加粗、高亮、空格清理、标点互转、列表块合并 |
 | `src/plugin/action-runner.ts` | 动作执行壳，负责运行态守卫、只读校验、确认对话框、忙碌态与剩余少量主流程 |
 | `src/plugin/alpha-feature-config.ts` | Alpha 功能隐藏配置、隐藏动作过滤与动作到设置项的联动隐藏规则 |
@@ -133,7 +134,7 @@
 | `src/plugin/power-buttons-provider-types.ts` | 面向 `power-buttons` 的跨插件 provider 协议类型 |
 | `src/plugin/power-buttons-provider.ts` | `power-buttons` 白名单 provider；负责公开命令列表与 `runAction` 路由 |
 
-### 4.5 `src/services/`（38 个文件）
+### 4.5 `src/services/`（39 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
@@ -169,6 +170,7 @@
 | `src/services/key-info-pipeline.ts` | 关键内容归一化、补标题与按锚点排序 |
 | `src/services/key-info-query.ts` | blocks/spans 查询、root ID 解析、kramdown map 构建 |
 | `src/services/key-info.ts` | 关键内容总装配服务 |
+| `src/services/large-documents-report.ts` | 统计当前笔记本文档与资源大小并创建 Top100 大文件清单 |
 | `src/services/link-resolver.ts` | 反链/正链/子文档解析与 Markdown 列表生成 |
 | `src/services/mover.ts` | 文档移动执行器 |
 | `src/services/monthly-diary.ts` | 基于当前笔记本 Daily Note 路径创建本月月记文档 |
@@ -272,6 +274,8 @@ tests/markdown-cleanup-core.test.ts
 tests/markdown-style-core.test.ts
 tests/monthly-diary-core.test.ts
 tests/monthly-diary-service.test.ts
+tests/large-documents-report-core.test.ts
+tests/large-documents-report-service.test.ts
 tests/mocks/siyuan.ts
 tests/move-core.test.ts
 tests/mover.test.ts

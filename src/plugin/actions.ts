@@ -13,6 +13,7 @@ export type ActionKey =
   | "move-backlinks"
   | "move-forward-links"
   | "create-open-docs-summary"
+  | "create-top100-large-documents-report"
   | "dedupe"
   | "remove-extra-blank-lines"
   | "trim-trailing-whitespace"
@@ -80,6 +81,7 @@ const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "move-backlinks": "移",
   "move-forward-links": "正",
   "create-open-docs-summary": "汇",
+  "create-top100-large-documents-report": "大",
   dedupe: "重",
   "insert-backlinks": "反",
   "insert-child-docs": "子",
@@ -210,6 +212,17 @@ const BASE_ACTIONS: BaseActionConfig[] = [
     tooltip: createActionTooltip(
       "生成已打开文档的汇总页",
       "汇总当前已打开且未钉住的文档，生成一篇新的汇总页并自动打开。"
+    ),
+    group: "organize",
+    icon: "iconList",
+  },
+  {
+    key: "create-top100-large-documents-report",
+    commandText: "输出Top100大文件清单",
+    menuText: "输出Top100大文件清单",
+    tooltip: createActionTooltip(
+      "输出Top100大文件清单",
+      "统计当前笔记本内文档本体与内嵌资源总大小最大的前 100 篇文档，并在 Daily Note 父目录下生成报告文档。"
     ),
     group: "organize",
     icon: "iconList",
