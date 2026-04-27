@@ -81,14 +81,19 @@ export async function getFileBlob(path: string): Promise<Blob> {
 
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
-    const json = (await response.json().catch(() => null)) as unknown;
+    const text = await response.text();
+    if (!text.trim()) {
+      return new Blob([text]);
+    }
+
+    const json = parseJsonOrNull(text);
     if (isFileErrorEnvelope(json)) {
       throw new Error(json.msg || "读取文件失败");
     }
     if (isFileSuccessEnvelope(json)) {
       return toBlobFromSuccessData(json.data);
     }
-    throw new Error("读取文件失败");
+    return new Blob([text], { type: contentType });
   }
 
   return response.blob();
@@ -132,6 +137,14 @@ function toBlobFromSuccessData(data: unknown): Blob {
     return new Blob([JSON.stringify(data)]);
   }
   return new Blob([String(data)]);
+}
+
+function parseJsonOrNull(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 export async function getFileTextAllowJson(path: string): Promise<string> {
