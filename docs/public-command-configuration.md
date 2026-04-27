@@ -126,6 +126,7 @@ const PUBLIC_ACTION_KEYS = new Set<ActionKey>([
 | `move-forward-links` | 移动正链文档为子文档 |
 | `dedupe` | 识别本层级重复文档 |
 | `create-monthly-diary` | 新建本月日记 |
+| `create-top100-large-documents-report` | 输出Top100大文件清单 |
 | `mark-invalid-links-refs` | 标示无效链接/引用 |
 | `insert-blank-before-headings` | 标题前增加空段落 |
 | `create-doc-concept-map` | 生成概念地图 |

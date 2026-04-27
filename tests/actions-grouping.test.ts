@@ -22,6 +22,7 @@ describe("actions grouping", () => {
     expect(groups.get("export-related-docs-zip")).toBe("export");
     expect(groups.get("export-child-key-info-zip")).toBe("export");
     expect(groups.get("create-open-docs-summary")).toBe("organize");
+    expect(groups.get("create-top100-large-documents-report")).toBe("organize");
     expect(groups.get("toggle-links-refs")).toBe("insert");
     expect(groups.get("clean-ai-output")).toBe("ai");
     expect(groups.get("bold-selected-blocks")).toBe("edit");

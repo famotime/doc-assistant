@@ -106,4 +106,44 @@ describe("large documents report service", () => {
       })
     ).rejects.toThrow("当前笔记本未配置 Daily Note 保存路径");
   });
+
+  test("continues building report when doc asset lookup fails", async () => {
+    getDocMetaByIDMock.mockResolvedValue({
+      id: "doc-1",
+      box: "nb-1",
+      hPath: "/项目/当前文档",
+      title: "当前文档",
+    } as any);
+    getNotebookConfMock.mockResolvedValue({
+      box: "nb-1",
+      conf: {
+        dailyNoteSavePath: "/daily/{{now}}",
+      },
+    } as any);
+    renderSprigTemplateMock.mockResolvedValue("/daily/2026/04/2026-04-27");
+    listNotebookDocsMock.mockResolvedValue([
+      {
+        id: "doc-a",
+        box: "nb-1",
+        path: "/a.sy",
+        hPath: "/资料/A 文档",
+        updated: "20260427100000",
+        title: "A 文档",
+      },
+    ] as any);
+    getFileBlobMock.mockResolvedValue(new Blob(["1234"]));
+    getDocAssetsMock.mockRejectedValue(new Error("asset lookup failed"));
+    createDocWithMdMock.mockResolvedValue("report-doc");
+
+    await createTop100LargeDocumentsReport({
+      currentDocId: "doc-1",
+      now: new Date("2026-04-27T15:30:15+08:00"),
+    });
+
+    expect(createDocWithMdMock).toHaveBeenCalledWith(
+      "nb-1",
+      "/daily/2026/04/Top100大文件清单-20260427-153015",
+      expect.stringContaining("| 1 | [A 文档](siyuan://blocks/doc-a) | 4 B | 4 B | 0 B | 0 | /资料/A 文档 |")
+    );
+  });
 });
