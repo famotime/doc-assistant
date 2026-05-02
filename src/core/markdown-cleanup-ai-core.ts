@@ -3,6 +3,7 @@ export type AiOutputCleanupResult = {
   removedSupCount: number;
   removedCaretCount: number;
   removedInternetLinkCount: number;
+  removedRefCount: number;
   removedCount: number;
 };
 
@@ -20,11 +21,12 @@ function createEmptyAiOutputCleanupMetrics(): AiOutputCleanupMetrics {
     removedSupCount: 0,
     removedCaretCount: 0,
     removedInternetLinkCount: 0,
+    removedRefCount: 0,
   };
 }
 
 function sumAiOutputCleanupMetrics(metrics: AiOutputCleanupMetrics): number {
-  return metrics.removedSupCount + metrics.removedCaretCount + metrics.removedInternetLinkCount;
+  return metrics.removedSupCount + metrics.removedCaretCount + metrics.removedInternetLinkCount + metrics.removedRefCount;
 }
 
 function mergeAiOutputCleanupMetrics(
@@ -35,6 +37,7 @@ function mergeAiOutputCleanupMetrics(
     removedSupCount: base.removedSupCount + add.removedSupCount,
     removedCaretCount: base.removedCaretCount + add.removedCaretCount,
     removedInternetLinkCount: base.removedInternetLinkCount + add.removedInternetLinkCount,
+    removedRefCount: base.removedRefCount + add.removedRefCount,
   };
 }
 
@@ -147,10 +150,32 @@ function applyTrailingInternetLinkRule(line: string): AiOutputLineRuleResult {
   };
 }
 
+function applyRefMarkerRule(line: string): AiOutputLineRuleResult {
+  const refPattern = /\[\^[0-9]+(?:_[0-9]+)*\](?!\():?|\[[0-9]+(?:_[0-9]+)+\](?!\()/gu;
+  let removedRefCount = 0;
+  const nextLine = line.replace(refPattern, (match, offset) => {
+    const isLineStart = /^\s*$/.test(line.slice(0, offset));
+    if (!match.includes("^") && isLineStart) {
+      return match;
+    }
+    removedRefCount += 1;
+    return "";
+  });
+
+  return {
+    line: nextLine,
+    metrics: {
+      ...createEmptyAiOutputCleanupMetrics(),
+      removedRefCount,
+    },
+  };
+}
+
 const AI_OUTPUT_LINE_RULES: AiOutputLineRule[] = [
   applySupRule,
   applyCaretRule,
   applyTrailingInternetLinkRule,
+  applyRefMarkerRule,
 ];
 
 function cleanupAiOutputLine(line: string): AiOutputCleanupResult {
@@ -179,6 +204,7 @@ export function cleanupAiOutputArtifactsInMarkdown(markdown: string): AiOutputCl
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 0,
+      removedRefCount: 0,
       removedCount: 0,
     };
   }

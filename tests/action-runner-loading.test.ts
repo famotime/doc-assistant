@@ -1224,7 +1224,7 @@ describe("action-runner loading guard", () => {
     expect(askConfirm).toHaveBeenCalledTimes(1);
     expect(askConfirm).toHaveBeenCalledWith(
       "确认清理AI输出内容",
-      expect.stringContaining("上标 1 处，^^ 1 处，互联网链接 2 处")
+      expect.stringContaining("上标 1 处，^^ 1 处，互联网链接 2 处，引用标记 0 处")
     );
     expect(askConfirm).toHaveBeenCalledWith(
       "确认清理AI输出内容",
@@ -1234,7 +1234,7 @@ describe("action-runner loading guard", () => {
     expect(updateBlockMarkdownMock).toHaveBeenNthCalledWith(1, "a", "正文");
     expect(updateBlockMarkdownMock).toHaveBeenNthCalledWith(2, "b", "| col1 | |");
     expect(showMessageMock).toHaveBeenCalledWith(
-      "已清理 AI 输出残留：上标 1 处，^^ 1 处，互联网链接 2 处，共更新 2 个块",
+      "已清理 AI 输出残留：上标 1 处，^^ 1 处，互联网链接 2 处，引用标记 0 处，共更新 2 个块",
       5000,
       "info"
     );

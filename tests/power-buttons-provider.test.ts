@@ -12,8 +12,8 @@ describe("power buttons provider", () => {
     const commands = await provider.listCommands();
     const commandIds = commands.map(command => command.id);
 
-    expect(commandIds).not.toContain("insert-doc-summary");
-    expect(commandIds).not.toContain("clean-ai-output");
+    expect(commandIds).toContain("insert-doc-summary");
+    expect(commandIds).toContain("clean-ai-output");
     expect(commandIds).toContain("trim-trailing-whitespace");
     expect(commandIds).not.toContain("create-monthly-diary");
   });

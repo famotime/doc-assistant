@@ -1,10 +1,10 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ACTIONS, getActionConfigByKey } from "@/plugin/actions";
 import { buildDefaultDocMenuRegistration } from "@/core/doc-menu-registration-core";
 import { buildDockDocActions } from "@/core/dock-panel-core";
-import { filterVisibleActions } from "@/plugin/alpha-feature-config";
+import { ALPHA_FEATURE_HIDE_CONFIG, filterVisibleActions } from "@/plugin/alpha-feature-config";
 
 const {
   settingInstances,
@@ -135,6 +135,15 @@ describe("plugin settings", () => {
     topBarConfigs.length = 0;
     showMessageMock.mockReset();
     addIconsMock.mockReset();
+    ALPHA_FEATURE_HIDE_CONFIG.hiddenActionKeys = ACTIONS
+      .filter((action) => action.group === "ai")
+      .map((action) => action.key);
+    ALPHA_FEATURE_HIDE_CONFIG.hiddenSettingKeys = ["ai-service", "monthly-diary-template"];
+  });
+
+  afterEach(() => {
+    ALPHA_FEATURE_HIDE_CONFIG.hiddenActionKeys = [];
+    ALPHA_FEATURE_HIDE_CONFIG.hiddenSettingKeys = [];
   });
 
   test("opens a settings page for doc menu registration and defaults every action to unregistered", async () => {
@@ -169,10 +178,12 @@ describe("plugin settings", () => {
       true
     );
 
+    const currentVisibleActions = filterVisibleActions(ACTIONS);
+
     const groupTitles = Array.from(
       menuRegistrationPanel.querySelectorAll(".doc-assistant-settings__menu-registration-group-title")
     ).map((element) => element.textContent?.trim());
-    expect(groupTitles).toEqual(getExpectedGroupTitles(visibleActions));
+    expect(groupTitles).toEqual(getExpectedGroupTitles(currentVisibleActions));
 
     const firstGroupList = menuRegistrationPanel.querySelector(
       ".doc-assistant-settings__menu-registration-group-list"
@@ -194,7 +205,7 @@ describe("plugin settings", () => {
     const menuActionRows = menuRegistrationPanel.querySelectorAll(
       ".doc-assistant-settings__menu-registration-action"
     );
-    expect(menuActionRows).toHaveLength(visibleActions.length);
+    expect(menuActionRows).toHaveLength(currentVisibleActions.length);
 
     const genericActionMeta = Array.from(
       menuRegistrationPanel.querySelectorAll(".doc-assistant-settings__menu-registration-action-meta")
@@ -435,7 +446,7 @@ describe("plugin settings", () => {
   test("hides alpha actions and related settings panels when configured", async () => {
     const { ALPHA_FEATURE_HIDE_CONFIG } = await import("@/plugin/alpha-feature-config");
     ALPHA_FEATURE_HIDE_CONFIG.hiddenActionKeys = ["create-monthly-diary"];
-    ALPHA_FEATURE_HIDE_CONFIG.hiddenSettingKeys = ["ai-service"];
+    ALPHA_FEATURE_HIDE_CONFIG.hiddenSettingKeys = ["ai-service", "monthly-diary-template"];
 
     try {
       const { default: DocLinkToolkitPlugin } = await import("@/plugin/plugin-lifecycle");
@@ -458,9 +469,7 @@ describe("plugin settings", () => {
         menuRegistrationPanel.querySelectorAll(".doc-assistant-settings__menu-registration-action")
       ).toHaveLength(ACTIONS.length - 1);
     } finally {
-      ALPHA_FEATURE_HIDE_CONFIG.hiddenActionKeys = ACTIONS
-        .filter((action) => action.group === "ai")
-        .map((action) => action.key);
+      ALPHA_FEATURE_HIDE_CONFIG.hiddenActionKeys = [];
       ALPHA_FEATURE_HIDE_CONFIG.hiddenSettingKeys = [];
     }
   });

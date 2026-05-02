@@ -461,7 +461,7 @@ const BASE_ACTIONS: BaseActionConfig[] = [
     menuText: "清理AI输出内容",
     tooltip: createActionTooltip(
       "清理AI输出内容",
-      "清理常见 AI 报告残留，如脚注上标、^^ 标记和“互联网”来源链接；目前主要适配 Deep Research 类输出。"
+      "清理常见 AI 报告残留，如脚注上标、^^ 标记、引用标记和”互联网”来源链接；目前主要适配 Deep Research 类输出。"
     ),
     group: "ai",
     requiresWritableDoc: true,

@@ -174,6 +174,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 1,
       removedCaretCount: 1,
       removedInternetLinkCount: 2,
+      removedRefCount: 0,
       removedCount: 4,
     });
   });
@@ -196,6 +197,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 2,
+      removedRefCount: 0,
       removedCount: 2,
     });
   });
@@ -213,6 +215,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 0,
+      removedRefCount: 0,
       removedCount: 0,
     });
   });
@@ -226,6 +229,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 1,
       removedCaretCount: 1,
       removedInternetLinkCount: 2,
+      removedRefCount: 0,
       removedCount: 4,
     });
 
@@ -235,7 +239,54 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 0,
+      removedRefCount: 0,
       removedCount: 0,
+    });
+  });
+
+  test("removes reference markers and preserves markdown links", () => {
+    const input = [
+      "文本内容[4_2]继续",
+      "引用[^4_2] 和 [^3_10]: 定义",
+      "| 列[2_1] | 内容[^5_3] |",
+      "[正常的链接](https://example.com) 保留",
+    ].join("\n");
+
+    const result = cleanupAiOutputArtifactsInMarkdown(input);
+
+    expect(result).toEqual({
+      markdown: [
+        "文本内容继续",
+        "引用 和  定义",
+        "| 列 | 内容 |",
+        "[正常的链接](https://example.com) 保留",
+      ].join("\n"),
+      removedSupCount: 0,
+      removedCaretCount: 0,
+      removedInternetLinkCount: 0,
+      removedRefCount: 5,
+      removedCount: 5,
+    });
+  });
+
+  test("preserves reference definitions at line start while removing mid-line markers", () => {
+    const input = [
+      "正文[4_2]引用[^1_2]结尾",
+      "纯文本无标记",
+    ].join("\n");
+
+    const result = cleanupAiOutputArtifactsInMarkdown(input);
+
+    expect(result).toEqual({
+      markdown: [
+        "正文引用结尾",
+        "纯文本无标记",
+      ].join("\n"),
+      removedSupCount: 0,
+      removedCaretCount: 0,
+      removedInternetLinkCount: 0,
+      removedRefCount: 2,
+      removedCount: 2,
     });
   });
 
