@@ -41,7 +41,7 @@ type SqlDocBlockRow = {
 };
 
 const VISION_SYSTEM_PROMPT
-  = "Image text recognition assistant. Output all text from the image verbatim. If no text, reply [NO_TEXT].";
+  = "Image text recognition assistant. Output all text from the image verbatim. Organize into natural paragraphs; do not strictly follow the original line breaks in the image. If no text, reply [NO_TEXT].";
 
 const aiOcrLogger = createDocAssistantLogger("AiImageOCR");
 
@@ -113,21 +113,13 @@ export async function recognizeDocImages(
     const quoteMarkdown = buildOcrQuoteMarkdown(ocrText);
     const freshBlocks = await queryDocBlocks(normalizedDocId);
     const nextId = findNextSiblingId(freshBlocks, imageItems[i].blockId);
-    if (nextId) {
-      await reqApi("/api/block/insertBlock", {
-        dataType: "markdown",
-        data: quoteMarkdown,
-        nextID: nextId,
-        previousID: "",
-        parentID: normalizedDocId,
-      });
-    } else {
-      await reqApi("/api/block/appendBlock", {
-        dataType: "markdown",
-        data: quoteMarkdown,
-        parentID: normalizedDocId,
-      });
-    }
+    await reqApi("/api/block/insertBlock", {
+      dataType: "markdown",
+      data: quoteMarkdown,
+      nextID: nextId || "",
+      previousID: nextId ? "" : imageItems[i].blockId,
+      parentID: normalizedDocId,
+    });
     insertedCount += 1;
   }
 
