@@ -38,7 +38,8 @@ export type ActionKey =
   | "highlight-selected-blocks"
   | "toggle-linebreaks-paragraphs"
   | "remove-selected-spacing"
-  | "toggle-selected-punctuation";
+  | "toggle-selected-punctuation"
+  | "split-doc-by-headings";
 
 export type ActionConfig = {
   key: ActionKey;
@@ -110,6 +111,7 @@ const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "trim-trailing-whitespace": "尾",
   "toggle-links-refs": "转",
   "delete-from-current-to-end": "删",
+  "split-doc-by-headings": "拆",
 };
 
 const BASE_ACTIONS: BaseActionConfig[] = [
@@ -238,6 +240,18 @@ const BASE_ACTIONS: BaseActionConfig[] = [
     group: "organize",
     desktopOnly: true,
     icon: "iconTrashcan",
+  },
+  {
+    key: "split-doc-by-headings",
+    commandText: "按标题拆分文档",
+    menuText: "按标题拆分文档",
+    tooltip: createActionTooltip(
+      "按标题拆分文档",
+      "将文档按最高级标题拆分为多个子文档；第一个标题前的内容保留在原文档，拆分后原文档中的已拆分内容将被删除。"
+    ),
+    group: "organize",
+    requiresWritableDoc: true,
+    icon: "iconSplitLR",
   },
   {
     key: "insert-backlinks",

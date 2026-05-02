@@ -1,12 +1,14 @@
 import { showMessage } from "siyuan";
 import { deleteDocsByIds, findDuplicateCandidates } from "@/services/dedupe";
-import { appendBlock } from "@/services/kernel";
+import { appendBlock, getChildBlocksByParentId } from "@/services/kernel";
 import { getBacklinkDocs, getForwardLinkedDocIds } from "@/services/link-resolver";
 import { createTop100LargeDocumentsReport } from "@/services/large-documents-report";
 import { moveDocsAsChildren } from "@/services/mover";
 import { createOpenedDocsSummaryDoc } from "@/services/open-doc-summary";
 import { PartialActionHandlerMap } from "@/plugin/action-runner-dispatcher";
 import { openDedupeDialog } from "@/ui/dialogs";
+import { splitDocByHeadings } from "@/services/split-doc-by-headings";
+import { splitDocByHeadingsCore } from "@/core/split-doc-by-headings-core";
 
 type CreateOrganizeActionHandlersOptions = {
   askConfirmWithVisibleDialog: (title: string, text: string) => Promise<boolean>;
@@ -150,6 +152,42 @@ export function createOrganizeActionHandlers(
         onInsertLinks: (docs) => insertDocLinks(docId, docs, options.ensureDocWritable),
       });
       showMessage(`识别到 ${candidates.length} 组重复候选`, 5000, "info");
+    },
+    "split-doc-by-headings": async (docId) => {
+      const blocks = await getChildBlocksByParentId(docId);
+      const { sections } = splitDocByHeadingsCore(blocks);
+
+      if (sections.length === 0) {
+        showMessage("文档中未找到标题，无法拆分", 5000, "info");
+        return;
+      }
+      if (sections.length === 1) {
+        showMessage("文档中仅有一个最高级标题，无需拆分", 5000, "info");
+        return;
+      }
+
+      const ok = await options.askConfirmWithVisibleDialog(
+        "按标题拆分文档",
+        `将按最高级标题拆分为 ${sections.length} 个子文档，原文档中对应内容将被删除，是否继续？`
+      );
+      if (!ok) {
+        return;
+      }
+
+      options.setBusy?.(true);
+      try {
+        const report = await splitDocByHeadings(docId);
+        showMessage(
+          `拆分完成：已创建 ${report.sectionCount} 个子文档，从原文档删除 ${report.deletedBlockCount} 个块`,
+          9000,
+          "info"
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        showMessage(`拆分失败：${msg}`, 9000, "error");
+      } finally {
+        options.setBusy?.(false);
+      }
     },
   };
 }
