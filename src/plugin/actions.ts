@@ -39,7 +39,8 @@ export type ActionKey =
   | "toggle-linebreaks-paragraphs"
   | "remove-selected-spacing"
   | "toggle-selected-punctuation"
-  | "split-doc-by-headings";
+  | "split-doc-by-headings"
+  | "recognize-doc-images";
 
 export type ActionConfig = {
   key: ActionKey;
@@ -112,6 +113,7 @@ const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "toggle-links-refs": "转",
   "delete-from-current-to-end": "删",
   "split-doc-by-headings": "拆",
+  "recognize-doc-images": "识",
 };
 
 const BASE_ACTIONS: BaseActionConfig[] = [
@@ -384,6 +386,19 @@ const BASE_ACTIONS: BaseActionConfig[] = [
     group: "edit",
     requiresWritableDoc: true,
     icon: "iconBold",
+  },
+  {
+    key: "recognize-doc-images",
+    commandText: "本文档图片文字识别",
+    menuText: "本文档图片文字识别",
+    tooltip: createActionTooltip(
+      "本文档图片文字识别",
+      "将本文档所有图片逐个发送给 AI 视觉服务，识别成文字后以引用格式插入到对应图片下方。"
+    ),
+    group: "ai",
+    requiresWritableDoc: true,
+    runInBackground: true,
+    icon: "iconImage",
   },
   {
     key: "merge-selected-list-blocks",

@@ -4,9 +4,13 @@ export type AiServiceConfig = {
   apiKey: string;
   model: string;
   requestTimeoutSeconds: number;
+  temperature: number;
+  maxTokens: number;
 };
 
-export const DEFAULT_AI_REQUEST_TIMEOUT_SECONDS = 30;
+export const DEFAULT_AI_REQUEST_TIMEOUT_SECONDS = 60;
+export const DEFAULT_AI_TEMPERATURE = 0.7;
+export const DEFAULT_AI_MAX_TOKENS = 4096;
 
 export function buildDefaultAiServiceConfig(): AiServiceConfig {
   return {
@@ -15,7 +19,13 @@ export function buildDefaultAiServiceConfig(): AiServiceConfig {
     apiKey: "",
     model: "",
     requestTimeoutSeconds: DEFAULT_AI_REQUEST_TIMEOUT_SECONDS,
+    temperature: DEFAULT_AI_TEMPERATURE,
+    maxTokens: DEFAULT_AI_MAX_TOKENS,
   };
+}
+
+function sanitizeVisibleString(value: string): string {
+  return value.replace(/\p{Cf}/gu, "").trim();
 }
 
 export function normalizeAiServiceConfig(raw: unknown): AiServiceConfig {
@@ -27,13 +37,15 @@ export function normalizeAiServiceConfig(raw: unknown): AiServiceConfig {
   const value = raw as Partial<AiServiceConfig>;
   return {
     enabled: value.enabled === true,
-    baseUrl: typeof value.baseUrl === "string" ? value.baseUrl.trim() : defaults.baseUrl,
-    apiKey: typeof value.apiKey === "string" ? value.apiKey.trim() : defaults.apiKey,
-    model: typeof value.model === "string" ? value.model.trim() : defaults.model,
+    baseUrl: typeof value.baseUrl === "string" ? sanitizeVisibleString(value.baseUrl) : defaults.baseUrl,
+    apiKey: typeof value.apiKey === "string" ? sanitizeVisibleString(value.apiKey) : defaults.apiKey,
+    model: typeof value.model === "string" ? sanitizeVisibleString(value.model) : defaults.model,
     requestTimeoutSeconds: normalizePositiveInteger(
       value.requestTimeoutSeconds,
       defaults.requestTimeoutSeconds
     ),
+    temperature: normalizeTemperature(value.temperature, defaults.temperature),
+    maxTokens: normalizePositiveInteger(value.maxTokens, defaults.maxTokens),
   };
 }
 
@@ -54,4 +66,13 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
       ? Math.floor(value)
       : Number.NaN;
   return Number.isFinite(normalized) && normalized > 0 ? normalized : fallback;
+}
+
+function normalizeTemperature(value: unknown, fallback: number): number {
+  const parsed = typeof value === "string" && value.trim()
+    ? Number.parseFloat(value)
+    : typeof value === "number"
+      ? value
+      : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 2 ? parsed : fallback;
 }

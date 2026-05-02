@@ -288,6 +288,52 @@
   color: var(--b3-theme-on-surface-light);
 }
 
+.doc-assistant-settings__ai-debug-row {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.doc-assistant-settings__api-key-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.doc-assistant-settings__api-key-input {
+  width: 100%;
+  padding-right: 48px;
+}
+
+.doc-assistant-settings__api-key-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--b3-theme-on-background) 70%, transparent);
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+
+  &:hover {
+    background: color-mix(in srgb, var(--b3-theme-surface) 76%, var(--b3-theme-primary) 10%);
+    border-color: color-mix(in srgb, var(--b3-theme-primary) 12%, transparent);
+    color: var(--b3-theme-on-background);
+  }
+}
+
+.doc-assistant-settings__api-key-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 .doc-assistant-settings__menu-registration-summary {
   display: flex;
   align-items: center;

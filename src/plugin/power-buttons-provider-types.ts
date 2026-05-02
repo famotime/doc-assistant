@@ -1,6 +1,6 @@
 export interface PowerButtonsInvokeContext {
-  trigger: "button-click";
-  sourcePlugin: "siyuan-power-buttons";
+  trigger: "button-click" | "workflow-step";
+  sourcePlugin: string;
   sourcePluginVersion?: string;
   surface?: string;
   buttonId?: string;

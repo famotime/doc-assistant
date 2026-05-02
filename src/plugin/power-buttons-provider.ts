@@ -17,6 +17,7 @@ const PUBLIC_ACTION_KEYS = new Set<ActionKey>([
   "insert-doc-summary",
   "delete-from-current-to-end",
   "convert-images-to-webp",
+  "recognize-doc-images",
 ]);
 
 export function createPowerButtonsProvider(options: {

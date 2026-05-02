@@ -5,6 +5,7 @@ import {
   normalizeAiServiceConfig,
 } from "@/core/ai-service-config-core";
 import { normalizeAiSummaryText } from "@/core/ai-summary-core";
+import { createDocAssistantLogger } from "@/core/logger-core";
 import { forwardProxy, ForwardProxyHeader, ForwardProxyResponse } from "@/services/kernel";
 import { NetworkLensDocumentSummary } from "@/services/network-lens-ai-index";
 
@@ -59,8 +60,6 @@ export function createAiSummaryService(deps: {
         disabledMessage: "请先在设置中启用 AI 文档摘要",
         failureMessage: "AI 摘要请求失败",
         emptyMessage: "AI 未返回可用的文档摘要",
-        maxTokens: 240,
-        temperature: 0.2,
         messages: buildSummaryMessages({
           documentTitle: params.documentTitle,
           documentMarkdown: params.documentMarkdown,
@@ -76,8 +75,6 @@ export function createAiSummaryService(deps: {
         disabledMessage: "请先在设置中启用 AI 文档功能",
         failureMessage: "AI 概念地图请求失败",
         emptyMessage: "AI 未返回可用的概念地图",
-        maxTokens: 2200,
-        temperature: 0.2,
         messages: buildConceptMapMessages({
           documentTitle: params.documentTitle,
           documentMarkdown: params.documentMarkdown,
@@ -111,6 +108,8 @@ async function loadFreshDocumentSummary(
   }
 }
 
+const aiSummaryLogger = createDocAssistantLogger("AiSummary");
+
 async function requestChatCompletionText(
   forwardProxyFn: ForwardProxyFn,
   params: {
@@ -118,8 +117,8 @@ async function requestChatCompletionText(
     disabledMessage: string;
     failureMessage: string;
     emptyMessage: string;
-    maxTokens: number;
-    temperature: number;
+    maxTokens?: number;
+    temperature?: number;
     messages: ChatMessage[];
   }
 ): Promise<string> {
@@ -135,8 +134,16 @@ async function requestChatCompletionText(
   const body = JSON.stringify({
     model: config.model,
     messages: params.messages,
-    max_tokens: params.maxTokens,
-    temperature: params.temperature,
+    max_tokens: params.maxTokens ?? config.maxTokens,
+    temperature: params.temperature ?? config.temperature,
+  });
+
+  aiSummaryLogger.debug("request", {
+    endpoint,
+    model: config.model,
+    messageCount: params.messages.length,
+    maxTokens: params.maxTokens,
+    userContentLength: params.messages.find((m) => m.role === "user")?.content?.length ?? 0,
   });
 
   const response = await forwardProxyFn(
@@ -154,6 +161,14 @@ async function requestChatCompletionText(
     "application/json"
   );
 
+  const responseBodyPreview = (response?.body ?? "").slice(0, 500);
+  aiSummaryLogger.debug("response", {
+    status: response?.status,
+    elapsed: response?.elapsed,
+    bodyLength: response?.body?.length ?? 0,
+    bodyPreview: responseBodyPreview,
+  });
+
   if (!response || response.status < 200 || response.status >= 300) {
     throw new Error(`${params.failureMessage}（${response?.status ?? "未知状态"}）`);
   }
@@ -167,6 +182,13 @@ async function requestChatCompletionText(
 
   const text = extractTextContent(payload);
   if (!text) {
+    aiSummaryLogger.warn("empty extraction", {
+      hasChoices: Array.isArray(payload?.choices),
+      choiceCount: payload?.choices?.length ?? 0,
+      contentType: typeof payload?.choices?.[0]?.message?.content,
+      contentPreview: JSON.stringify(payload?.choices?.[0]?.message?.content)?.slice(0, 200),
+      finishReason: payload?.choices?.[0]?.finish_reason,
+    });
     throw new Error(params.emptyMessage);
   }
   return text;
@@ -222,12 +244,13 @@ function buildConceptMapMessages(params: {
 }
 
 function extractTextContent(payload: any): string {
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string") {
+  const message = payload?.choices?.[0]?.message;
+  const content = message?.content;
+  if (typeof content === "string" && content.trim()) {
     return normalizeAiSummaryText(content);
   }
   if (Array.isArray(content)) {
-    return normalizeAiSummaryText(
+    const joined = normalizeAiSummaryText(
       content
         .map((item) =>
           typeof item?.text === "string"
@@ -238,6 +261,14 @@ function extractTextContent(payload: any): string {
         )
         .join("\n")
     );
+    if (joined) {
+      return joined;
+    }
+  }
+
+  const reasoning = message?.reasoning_content;
+  if (typeof reasoning === "string" && reasoning.trim()) {
+    return normalizeAiSummaryText(reasoning);
   }
   return "";
 }

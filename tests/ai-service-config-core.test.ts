@@ -12,7 +12,9 @@ describe("ai service config core", () => {
       baseUrl: "",
       apiKey: "",
       model: "",
-      requestTimeoutSeconds: 30,
+      requestTimeoutSeconds: 60,
+      temperature: 0.7,
+      maxTokens: 4096,
     });
   });
 
@@ -28,8 +30,23 @@ describe("ai service config core", () => {
       baseUrl: "https://api.example.com/v1",
       apiKey: "sk-test",
       model: "gpt-4.1-mini",
-      requestTimeoutSeconds: 30,
+      requestTimeoutSeconds: 60,
+      temperature: 0.7,
+      maxTokens: 4096,
     });
+  });
+
+  test("strips zero-width and invisible Unicode characters from string fields", () => {
+    const zwsp = "​";
+    const result = normalizeAiServiceConfig({
+      enabled: true,
+      baseUrl: `${zwsp}https://api.example.com/v1${zwsp}`,
+      apiKey: `${zwsp}sk-test${zwsp}`,
+      model: `${zwsp}mimo-v2.5-pro${zwsp}`,
+    });
+    expect(result.baseUrl).toBe("https://api.example.com/v1");
+    expect(result.apiKey).toBe("sk-test");
+    expect(result.model).toBe("mimo-v2.5-pro");
   });
 
   test("requires enabled flag and endpoint credentials to be complete", () => {

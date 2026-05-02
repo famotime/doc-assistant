@@ -4,6 +4,7 @@ import {
   isAiServiceConfigComplete,
   normalizeAiServiceConfig,
 } from "@/core/ai-service-config-core";
+import { createDocAssistantLogger } from "@/core/logger-core";
 import { forwardProxy, ForwardProxyHeader, ForwardProxyResponse } from "@/services/kernel";
 import {
   extractIrrelevantParagraphIds,
@@ -49,14 +50,24 @@ function resolveRequestTimeoutMs(config: AiServiceConfig): number {
   ) * 1000;
 }
 
+const aiSlopLogger = createDocAssistantLogger("AiSlopMarker");
+
 async function requestChatCompletion(params: {
   forwardProxy: ForwardProxyFn;
   config: AiServiceConfig;
   body: string;
   failureMessage: string;
 }): Promise<any> {
+  const endpoint = buildChatCompletionEndpoint(params.config.baseUrl);
+
+  aiSlopLogger.debug("request", {
+    endpoint,
+    model: params.config.model,
+    bodySize: params.body.length,
+  });
+
   const response = await params.forwardProxy(
-    buildChatCompletionEndpoint(params.config.baseUrl),
+    endpoint,
     "POST",
     params.body,
     [
@@ -66,6 +77,12 @@ async function requestChatCompletion(params: {
     resolveRequestTimeoutMs(params.config),
     "application/json"
   );
+
+  aiSlopLogger.debug("response", {
+    status: response?.status,
+    elapsed: response?.elapsed,
+    bodyLength: response?.body?.length ?? 0,
+  });
 
   if (!response || response.status < 200 || response.status >= 300) {
     throw new Error(`${params.failureMessage}（${response?.status ?? "未知状态"}）`);
@@ -111,8 +128,8 @@ export function createAiSlopMarkerService(deps: {
             documentTitle: params.documentTitle,
             paragraphs,
           }),
-          max_tokens: 400,
-          temperature: 0.1,
+          max_tokens: Math.min(config.maxTokens, 400),
+          temperature: config.temperature,
         }),
         failureMessage: "AI 口水内容筛选请求失败",
       });
@@ -144,8 +161,8 @@ export function createAiKeyContentMarkerService(deps: {
             documentTitle: params.documentTitle,
             paragraphs,
           }),
-          max_tokens: 700,
-          temperature: 0.1,
+          max_tokens: Math.min(config.maxTokens, 700),
+          temperature: config.temperature,
         }),
         failureMessage: "AI 关键内容识别请求失败",
       });

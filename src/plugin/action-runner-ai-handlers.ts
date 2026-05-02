@@ -8,6 +8,7 @@ import {
   generateDocumentConceptMap,
   generateDocumentSummary,
 } from "@/services/ai-summary";
+import { recognizeDocImages } from "@/services/ai-image-ocr";
 import { NetworkLensPluginLike, loadFreshNetworkLensDocumentSummary } from "@/services/network-lens-ai-index";
 import {
   detectIrrelevantParagraphIds,
@@ -252,6 +253,34 @@ export function createAiActionHandlers(
         return;
       }
       showMessage(summary, 5000, "info");
+    },
+    "recognize-doc-images": async (docId) => {
+      const report = await recognizeDocImages({
+        config: options.getAiSummaryConfig?.(),
+        docId,
+        onProgress: (current, total, assetPath) => {
+          const basename = assetPath.split("/").filter(Boolean).pop() || assetPath;
+          showMessage(`图片文字识别中（${current}/${total}）：${basename}`, 3000, "info");
+        },
+      });
+      if (report.scannedImageCount <= 0) {
+        showMessage("当前文档未发现可识别的本地图片", 5000, "info");
+        return;
+      }
+      if (report.insertedCount <= 0) {
+        if (report.failedCount > 0) {
+          showMessage(`图片文字识别失败 ${report.failedCount} 张，请检查 AI 服务配置`, 7000, "error");
+          return;
+        }
+        showMessage("图片中未识别出文字内容", 5000, "info");
+        return;
+      }
+      const suffix = report.failedCount > 0 ? `，失败 ${report.failedCount} 张` : "";
+      showMessage(
+        `图片文字识别完成：识别 ${report.recognizedCount} 张，插入 ${report.insertedCount} 条引用${suffix}`,
+        report.failedCount > 0 ? 7000 : 6000,
+        report.failedCount > 0 ? "error" : "info",
+      );
     },
   };
 }

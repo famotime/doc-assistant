@@ -15,7 +15,9 @@ describe("plugin lifecycle state", () => {
       baseUrl: "",
       apiKey: "",
       model: "",
-      requestTimeoutSeconds: 30,
+      requestTimeoutSeconds: 60,
+      temperature: 0.7,
+      maxTokens: 4096,
     });
     expect(state.monthlyDiaryTemplate).toContain("{{date}}");
     expect(state.monthlyDiaryTemplate).toContain("{{weekday}}");
@@ -38,6 +40,8 @@ describe("plugin lifecycle state", () => {
       apiKey: "sk-test",
       model: "gpt-4.1-mini",
       requestTimeoutSeconds: 60,
+      temperature: 0.7,
+      maxTokens: 4096,
     });
 
     expect(serializePluginDocMenuState(normalized)).toEqual(
@@ -48,6 +52,8 @@ describe("plugin lifecycle state", () => {
           apiKey: "sk-test",
           model: "gpt-4.1-mini",
           requestTimeoutSeconds: 60,
+          temperature: 0.7,
+          maxTokens: 4096,
         },
       })
     );

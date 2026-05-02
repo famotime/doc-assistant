@@ -199,6 +199,43 @@ describe("ai summary service", () => {
     expect(String(forwardProxy.mock.calls[0]?.[2] || "")).toContain("没有标题和普通正文段落");
   });
 
+  test("falls back to reasoning_content when content is empty (reasoning model)", async () => {
+    const forwardProxy = vi.fn().mockResolvedValue({
+      status: 200,
+      body: JSON.stringify({
+        choices: [
+          {
+            finish_reason: "length",
+            message: {
+              content: "",
+              role: "assistant",
+              reasoning_content: "嗯，用户要求生成摘要。这个文档主要介绍了搜索替换插件的功能特性。摘要：这是一个类似 VS Code 风格的搜索替换插件，支持正则表达式、大小写匹配等功能。",
+            },
+          },
+        ],
+      }),
+    });
+    const service = createAiSummaryService({ forwardProxy });
+
+    const result = await service.generateDocumentSummary({
+      config: {
+        enabled: true,
+        baseUrl: "https://api.example.com/v1",
+        apiKey: "sk-test",
+        model: "mimo-v2.5-pro",
+        requestTimeoutSeconds: 60,
+        maxTokens: 2048,
+      },
+      documentTitle: "搜索替换插件",
+      documentMarkdown: "# 搜索替换插件\n\n支持正则表达式、大小写匹配等功能。",
+    });
+
+    expect(result).toContain("搜索替换插件");
+    expect(forwardProxy).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(forwardProxy.mock.calls[0]?.[2] || "{}");
+    expect(body.max_tokens).toBe(2048);
+  });
+
   test("throws a readable error when config is incomplete", async () => {
     const service = createAiSummaryService({
       forwardProxy: vi.fn(),
