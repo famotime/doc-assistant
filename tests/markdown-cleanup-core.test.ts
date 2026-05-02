@@ -174,6 +174,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 1,
       removedCaretCount: 1,
       removedInternetLinkCount: 2,
+      removedHiddenSpanCount: 0,
       removedRefCount: 0,
       removedCount: 4,
     });
@@ -197,6 +198,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 2,
+      removedHiddenSpanCount: 0,
       removedRefCount: 0,
       removedCount: 2,
     });
@@ -215,6 +217,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 0,
+      removedHiddenSpanCount: 0,
       removedRefCount: 0,
       removedCount: 0,
     });
@@ -229,6 +232,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 1,
       removedCaretCount: 1,
       removedInternetLinkCount: 2,
+      removedHiddenSpanCount: 0,
       removedRefCount: 0,
       removedCount: 4,
     });
@@ -239,6 +243,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 0,
+      removedHiddenSpanCount: 0,
       removedRefCount: 0,
       removedCount: 0,
     });
@@ -264,6 +269,7 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 0,
+      removedHiddenSpanCount: 0,
       removedRefCount: 5,
       removedCount: 5,
     });
@@ -285,8 +291,87 @@ describe("markdown-cleanup-core", () => {
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 0,
+      removedHiddenSpanCount: 0,
       removedRefCount: 2,
       removedCount: 2,
+    });
+  });
+
+  test("removes entire hidden span containing citation references", () => {
+    const input = [
+      "请问您当前主要是在哪个系统上使用该终端？",
+      '<span style="display:none">[1_13][1_15]</span>',
+    ].join("\n");
+
+    const result = cleanupAiOutputArtifactsInMarkdown(input);
+
+    expect(result).toEqual({
+      markdown: [
+        "请问您当前主要是在哪个系统上使用该终端？",
+        "",
+      ].join("\n"),
+      removedSupCount: 0,
+      removedCaretCount: 0,
+      removedInternetLinkCount: 0,
+      removedHiddenSpanCount: 1,
+      removedRefCount: 0,
+      removedCount: 1,
+    });
+  });
+
+  test("removes hidden span with display:none variant styles", () => {
+    const input = [
+      '<span style="display: none;">text</span>',
+      "<span style='display:none'>text</span>",
+      '<span style="color:red; display:none; font-size:12px">text</span>',
+    ].join("\n");
+
+    const result = cleanupAiOutputArtifactsInMarkdown(input);
+
+    expect(result).toEqual({
+      markdown: ["", "", ""].join("\n"),
+      removedSupCount: 0,
+      removedCaretCount: 0,
+      removedInternetLinkCount: 0,
+      removedHiddenSpanCount: 3,
+      removedRefCount: 0,
+      removedCount: 3,
+    });
+  });
+
+  test("cleans real document content with table ref marks and hidden span", () => {
+    const input = [
+      "|功能|快捷键组合|适用场景|",
+      "| :---| :---| :---|",
+      "|分割终端窗格|`Cmd + D` [^1_1]|多窗口监控 [^1_7]|",
+      "|清除终端视图|`Cmd + K` [^1_3]|清理屏幕 [^1_3]|",
+      "",
+      "**多光标编辑** 可以创建多个光标同时编辑 。[^1_6]",
+      "",
+      "请问您主要在哪个系统上使用？",
+      '<span style="display:none">[1_13][1_15]</span>',
+    ].join("\n");
+
+    const result = cleanupAiOutputArtifactsInMarkdown(input);
+
+    expect(result).toEqual({
+      markdown: [
+        "|功能|快捷键组合|适用场景|",
+        "| :---| :---| :---|",
+        "|分割终端窗格|`Cmd + D` |多窗口监控 |",
+        "|清除终端视图|`Cmd + K` |清理屏幕 |",
+        "",
+        "**多光标编辑** 可以创建多个光标同时编辑 。",
+        "",
+        "请问您主要在哪个系统上使用？",
+        "",
+      ].join("\n"),
+      removedSupCount: 0,
+      removedCaretCount: 0,
+      removedInternetLinkCount: 0,
+      removedHiddenSpanCount: 1,
+      removedRefCount: 5,
+      removedCount: 6,
     });
   });
 

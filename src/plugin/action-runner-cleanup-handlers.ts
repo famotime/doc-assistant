@@ -36,6 +36,7 @@ type AiOutputCleanupPreview = {
   removedSupCount: number;
   removedCaretCount: number;
   removedInternetLinkCount: number;
+  removedHiddenSpanCount: number;
   removedRefCount: number;
 };
 
@@ -74,6 +75,7 @@ function previewAiOutputCleanup(
     removedSupCount: 0,
     removedCaretCount: 0,
     removedInternetLinkCount: 0,
+    removedHiddenSpanCount: 0,
     removedRefCount: 0,
   };
 
@@ -95,6 +97,7 @@ function previewAiOutputCleanup(
     preview.removedSupCount += cleaned.removedSupCount;
     preview.removedCaretCount += cleaned.removedCaretCount;
     preview.removedInternetLinkCount += cleaned.removedInternetLinkCount;
+    preview.removedHiddenSpanCount += cleaned.removedHiddenSpanCount;
     preview.removedRefCount += cleaned.removedRefCount;
   }
 
@@ -357,7 +360,7 @@ export function createCleanupActionHandlers(
     }
 
     const confirmLines = [
-      `已找到待清理内容：上标 ${preview.removedSupCount} 处，^^ ${preview.removedCaretCount} 处，互联网链接 ${preview.removedInternetLinkCount} 处，引用标记 ${preview.removedRefCount} 处。`,
+      `已找到待清理内容：上标 ${preview.removedSupCount} 处，^^ ${preview.removedCaretCount} 处，互联网链接 ${preview.removedInternetLinkCount} 处，隐藏引用 ${preview.removedHiddenSpanCount} 处，引用标记 ${preview.removedRefCount} 处。`,
       `预计将更新 ${preview.cleanableBlockCount} 个块，是否继续？`,
     ];
     if (preview.riskyPendingBlockCount > 0) {
@@ -372,6 +375,7 @@ export function createCleanupActionHandlers(
     let removedSupCount = 0;
     let removedCaretCount = 0;
     let removedInternetLinkCount = 0;
+    let removedHiddenSpanCount = 0;
     let removedRefCount = 0;
     const emptyBlockIds: string[] = [];
     const report = await applyMarkdownTransformToBlocks({
@@ -389,6 +393,7 @@ export function createCleanupActionHandlers(
         removedSupCount += cleaned.removedSupCount;
         removedCaretCount += cleaned.removedCaretCount;
         removedInternetLinkCount += cleaned.removedInternetLinkCount;
+        removedHiddenSpanCount += cleaned.removedHiddenSpanCount;
         removedRefCount += cleaned.removedRefCount;
         if (/^\s*$/.test(cleaned.markdown)) {
           emptyBlockIds.push(block.id);
@@ -417,7 +422,7 @@ export function createCleanupActionHandlers(
       failedBlockCount += deleteResult.failedIds.length;
     }
 
-    const summary = `已清理 AI 输出残留：上标 ${removedSupCount} 处，^^ ${removedCaretCount} 处，互联网链接 ${removedInternetLinkCount} 处，引用标记 ${removedRefCount} 处，共更新 ${updatedBlockCount} 个块${deletedEmptyBlockCount > 0 ? `，删除 ${deletedEmptyBlockCount} 个空段落` : ""}`;
+    const summary = `已清理 AI 输出残留：上标 ${removedSupCount} 处，^^ ${removedCaretCount} 处，互联网链接 ${removedInternetLinkCount} 处，隐藏引用 ${removedHiddenSpanCount} 处，引用标记 ${removedRefCount} 处，共更新 ${updatedBlockCount} 个块${deletedEmptyBlockCount > 0 ? `，删除 ${deletedEmptyBlockCount} 个空段落` : ""}`;
     if (failedBlockCount > 0) {
       showMessage(`${summary}，失败 ${failedBlockCount} 个块`, 7000, "error");
       return;

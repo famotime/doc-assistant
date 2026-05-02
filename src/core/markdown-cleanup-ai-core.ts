@@ -3,6 +3,7 @@ export type AiOutputCleanupResult = {
   removedSupCount: number;
   removedCaretCount: number;
   removedInternetLinkCount: number;
+  removedHiddenSpanCount: number;
   removedRefCount: number;
   removedCount: number;
 };
@@ -21,12 +22,13 @@ function createEmptyAiOutputCleanupMetrics(): AiOutputCleanupMetrics {
     removedSupCount: 0,
     removedCaretCount: 0,
     removedInternetLinkCount: 0,
+    removedHiddenSpanCount: 0,
     removedRefCount: 0,
   };
 }
 
 function sumAiOutputCleanupMetrics(metrics: AiOutputCleanupMetrics): number {
-  return metrics.removedSupCount + metrics.removedCaretCount + metrics.removedInternetLinkCount + metrics.removedRefCount;
+  return metrics.removedSupCount + metrics.removedCaretCount + metrics.removedInternetLinkCount + metrics.removedHiddenSpanCount + metrics.removedRefCount;
 }
 
 function mergeAiOutputCleanupMetrics(
@@ -37,6 +39,7 @@ function mergeAiOutputCleanupMetrics(
     removedSupCount: base.removedSupCount + add.removedSupCount,
     removedCaretCount: base.removedCaretCount + add.removedCaretCount,
     removedInternetLinkCount: base.removedInternetLinkCount + add.removedInternetLinkCount,
+    removedHiddenSpanCount: base.removedHiddenSpanCount + add.removedHiddenSpanCount,
     removedRefCount: base.removedRefCount + add.removedRefCount,
   };
 }
@@ -150,6 +153,23 @@ function applyTrailingInternetLinkRule(line: string): AiOutputLineRuleResult {
   };
 }
 
+function applyHiddenSpanRule(line: string): AiOutputLineRuleResult {
+  const hiddenSpanPattern = /<span\b[^>]*\bstyle\s*=\s*["'][^"']*\bdisplay\s*:\s*none\b[^"']*["'][^>]*>[\s\S]*?<\/span>/giu;
+  let removedHiddenSpanCount = 0;
+  const nextLine = line.replace(hiddenSpanPattern, () => {
+    removedHiddenSpanCount += 1;
+    return "";
+  });
+
+  return {
+    line: nextLine,
+    metrics: {
+      ...createEmptyAiOutputCleanupMetrics(),
+      removedHiddenSpanCount,
+    },
+  };
+}
+
 function applyRefMarkerRule(line: string): AiOutputLineRuleResult {
   const refPattern = /\[\^[0-9]+(?:_[0-9]+)*\](?!\():?|\[[0-9]+(?:_[0-9]+)+\](?!\()/gu;
   let removedRefCount = 0;
@@ -172,6 +192,7 @@ function applyRefMarkerRule(line: string): AiOutputLineRuleResult {
 }
 
 const AI_OUTPUT_LINE_RULES: AiOutputLineRule[] = [
+  applyHiddenSpanRule,
   applySupRule,
   applyCaretRule,
   applyTrailingInternetLinkRule,
@@ -204,6 +225,7 @@ export function cleanupAiOutputArtifactsInMarkdown(markdown: string): AiOutputCl
       removedSupCount: 0,
       removedCaretCount: 0,
       removedInternetLinkCount: 0,
+      removedHiddenSpanCount: 0,
       removedRefCount: 0,
       removedCount: 0,
     };
