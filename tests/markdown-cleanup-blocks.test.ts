@@ -4,6 +4,7 @@ import {
   findExtraBlankParagraphIds,
   findHeadingMissingBlankParagraphBeforeIds,
   findDeleteFromCurrentBlockIds,
+  findDeleteFromStartToCurrentBlockIds,
 } from "@/core/markdown-cleanup-core";
 
 describe("markdown-cleanup-core (blocks)", () => {
@@ -158,5 +159,113 @@ describe("markdown-cleanup-core (blocks)", () => {
         mergedMarkdown: "1. 导入 Skill",
       },
     ]);
+  });
+});
+
+describe("findDeleteFromStartToCurrentBlockIds", () => {
+  test("deletes from start to current block (no separator)", () => {
+    const blocks = [
+      { id: "a", markdown: "A" },
+      { id: "b", markdown: "B" },
+      { id: "c", markdown: "C" },
+      { id: "d", markdown: "D" },
+    ];
+
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, "c");
+    expect(result.deleteIds).toEqual(["a", "b", "c"]);
+    expect(result.deleteCount).toBe(3);
+  });
+
+  test("preserves separator and blocks before it", () => {
+    const blocks = [
+      { id: "summary", markdown: "摘要内容" },
+      { id: "sep", markdown: "---" },
+      { id: "a", markdown: "正文A" },
+      { id: "b", markdown: "正文B" },
+      { id: "c", markdown: "正文C" },
+    ];
+
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, "b");
+    expect(result.deleteIds).toEqual(["a", "b"]);
+    expect(result.deleteCount).toBe(2);
+  });
+
+  test("separator at position 0 preserves nothing before it", () => {
+    const blocks = [
+      { id: "sep", markdown: "---" },
+      { id: "a", markdown: "A" },
+      { id: "b", markdown: "B" },
+    ];
+
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, "b");
+    expect(result.deleteIds).toEqual(["a", "b"]);
+    expect(result.deleteCount).toBe(2);
+  });
+
+  test("separator beyond first 10 blocks is ignored", () => {
+    const blocks = [
+      { id: "b01", markdown: "1" },
+      { id: "b02", markdown: "2" },
+      { id: "b03", markdown: "3" },
+      { id: "b04", markdown: "4" },
+      { id: "b05", markdown: "5" },
+      { id: "b06", markdown: "6" },
+      { id: "b07", markdown: "7" },
+      { id: "b08", markdown: "8" },
+      { id: "b09", markdown: "9" },
+      { id: "b10", markdown: "10" },
+      { id: "sep", markdown: "---" },
+      { id: "target", markdown: "T" },
+    ];
+
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, "target");
+    expect(result.deleteIds).toEqual([
+      "b01", "b02", "b03", "b04", "b05",
+      "b06", "b07", "b08", "b09", "b10",
+      "sep", "target",
+    ]);
+    expect(result.deleteCount).toBe(12);
+  });
+
+  test("returns empty when current block is before separator", () => {
+    const blocks = [
+      { id: "a", markdown: "A" },
+      { id: "sep", markdown: "---" },
+      { id: "b", markdown: "B" },
+    ];
+
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, "a");
+    expect(result.deleteIds).toEqual([]);
+    expect(result.deleteCount).toBe(0);
+  });
+
+  test("returns empty when current block not found", () => {
+    const blocks = [
+      { id: "a", markdown: "A" },
+      { id: "b", markdown: "B" },
+    ];
+
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, "missing");
+    expect(result.deleteIds).toEqual([]);
+    expect(result.deleteCount).toBe(0);
+  });
+
+  test("returns empty when currentBlockId is empty", () => {
+    const blocks = [{ id: "a", markdown: "A" }];
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, "");
+    expect(result.deleteIds).toEqual([]);
+    expect(result.deleteCount).toBe(0);
+  });
+
+  test("current block is the only block after separator", () => {
+    const blocks = [
+      { id: "summary", markdown: "概要" },
+      { id: "sep", markdown: " --- " },
+      { id: "only", markdown: "正文" },
+    ];
+
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, "only");
+    expect(result.deleteIds).toEqual(["only"]);
+    expect(result.deleteCount).toBe(1);
   });
 });

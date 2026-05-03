@@ -16,6 +16,7 @@ const PUBLIC_ACTION_KEYS = new Set<ActionKey>([
   "toggle-links-refs",
   "insert-doc-summary",
   "delete-from-current-to-end",
+  "delete-from-start-to-current",
   "convert-images-to-webp",
   "recognize-doc-images",
 ]);

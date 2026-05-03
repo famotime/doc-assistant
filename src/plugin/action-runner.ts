@@ -4,6 +4,7 @@ import { KeyInfoFilter } from "@/core/key-info-core";
 import { createDocAssistantLogger } from "@/core/logger-core";
 import {
   findDeleteFromCurrentBlockIds,
+  findDeleteFromStartToCurrentBlockIds,
   removeTrailingWhitespaceFromDom,
   removeTrailingWhitespaceFromMarkdown,
 } from "@/core/markdown-cleanup-core";
@@ -58,6 +59,7 @@ type ActionRunnerDeps = {
 
 const trailingWhitespaceLogger = createDocAssistantLogger("TrailingWhitespace");
 const deleteFromCurrentLogger = createDocAssistantLogger("DeleteFromCurrent");
+const deleteFromStartToCurrentLogger = createDocAssistantLogger("DeleteFromStartToCurrent");
 const DELETE_BLOCK_CONCURRENCY = 6;
 
 function extractBlockLevelIal(kramdown: string): string | null {
@@ -126,6 +128,8 @@ export class ActionRunner {
       "trim-trailing-whitespace": async (docId) => this.handleTrimTrailingWhitespace(docId),
       "delete-from-current-to-end": async (docId, protyle) =>
         this.handleDeleteFromCurrentToEnd(docId, protyle),
+      "delete-from-start-to-current": async (docId, protyle) =>
+        this.handleDeleteFromStartToCurrent(docId, protyle),
     } as ActionHandlerMap;
   }
 
@@ -574,6 +578,67 @@ export class ActionRunner {
     const ok = await this.askConfirmWithVisibleDialog(
       "确认删除后续段落",
       `将删除 ${result.deleteCount} 个段落（含当前段），是否继续？`
+    );
+    if (!ok) {
+      return;
+    }
+    this.deps.setBusy?.(true);
+
+    const deleteResult = await deleteBlocksByIds(result.deleteIds, {
+      concurrency: DELETE_BLOCK_CONCURRENCY,
+    });
+    const failed = deleteResult.failedIds.length;
+
+    if (failed > 0) {
+      showMessage(`已删除 ${deleteResult.deletedCount} 个段落，失败 ${failed} 个`, 6000, "error");
+      return;
+    }
+    showMessage(`已删除 ${result.deleteCount} 个段落`, 5000, "info");
+  }
+
+  private async handleDeleteFromStartToCurrent(docId: string, protyle?: ProtyleLike) {
+    const current = resolveCurrentBlockId(docId, protyle);
+    const currentBlockId = current.id;
+    if (!currentBlockId) {
+      showMessage("未定位到当前段落，请将光标置于正文后重试", 5000, "error");
+      return;
+    }
+
+    const blocks = await getChildBlocksByParentId(docId);
+    if (!blocks.length) {
+      showMessage("当前文档没有可处理的段落", 4000, "info");
+      return;
+    }
+
+    const directChildIdSet = new Set(blocks.map((item) => item.id));
+    let deleteEndId = currentBlockId;
+    let mappedFromNested = false;
+    if (!directChildIdSet.has(deleteEndId)) {
+      const mapped = await resolveDocDirectChildBlockId(docId, deleteEndId);
+      if (mapped) {
+        mappedFromNested = true;
+        deleteEndId = mapped;
+      }
+    }
+    deleteFromStartToCurrentLogger.debug("resolve end block", {
+      docId,
+      source: current.source,
+      currentBlockIdWasDocId: current.wasDocId,
+      currentBlockId,
+      deleteEndId,
+      mappedFromNested,
+      directChildCount: blocks.length,
+    });
+
+    const result = findDeleteFromStartToCurrentBlockIds(blocks, deleteEndId);
+    if (result.deleteCount === 0) {
+      showMessage("未找到当前段落之前可删除的内容", 5000, "error");
+      return;
+    }
+
+    const ok = await this.askConfirmWithVisibleDialog(
+      "确认删除之前段落",
+      `将删除 ${result.deleteCount} 个段落（含当前段，已跳过文首分隔线前的概要内容），是否继续？`
     );
     if (!ok) {
       return;

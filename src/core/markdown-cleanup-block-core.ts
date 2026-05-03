@@ -174,6 +174,47 @@ export function findDeleteFromCurrentBlockIds(
   };
 }
 
+const OPENING_SEPARATOR_WINDOW = 10;
+const SEPARATOR_MARKDOWN = "---";
+
+export function findDeleteFromStartToCurrentBlockIds(
+  blocks: Pick<ParagraphBlockMeta, "id" | "markdown">[],
+  currentBlockId: string
+): DeleteFromCurrentBlockResult {
+  if (!currentBlockId) {
+    return { deleteIds: [], deleteCount: 0 };
+  }
+
+  const currentIndex = blocks.findIndex((block) => block.id === currentBlockId);
+  if (currentIndex < 0) {
+    return { deleteIds: [], deleteCount: 0 };
+  }
+
+  const separatorIndex = blocks
+    .slice(0, OPENING_SEPARATOR_WINDOW)
+    .findIndex((b) => (b.markdown || "").trim() === SEPARATOR_MARKDOWN);
+
+  const deleteStart = separatorIndex >= 0 ? separatorIndex + 1 : 0;
+  if (deleteStart > currentIndex) {
+    return { deleteIds: [], deleteCount: 0 };
+  }
+
+  const deleteIds = blocks.slice(deleteStart, currentIndex + 1).map((b) => b.id);
+  deleteFromCurrentLogger.debug("findDeleteFromStartToCurrentBlockIds", {
+    totalBlocks: blocks.length,
+    currentBlockId,
+    currentIndex,
+    separatorIndex,
+    deleteStart,
+    deleteCount: deleteIds.length,
+    sample: deleteIds.slice(0, 8),
+  });
+  return {
+    deleteIds,
+    deleteCount: deleteIds.length,
+  };
+}
+
 function parseClippedListMarker(markdown: string): string | null {
   const normalized = (markdown || "").replace(/\r\n/g, "\n").trim();
   if (!normalized || normalized.includes("\n")) {

@@ -23,6 +23,7 @@ export type {
 export {
   findClippedListContinuationMerges,
   findDeleteFromCurrentBlockIds,
+  findDeleteFromStartToCurrentBlockIds,
   findExtraBlankParagraphIds,
   findHeadingMissingBlankParagraphBeforeIds,
 } from "@/core/markdown-cleanup-block-core";

@@ -78,6 +78,7 @@ const MOUSEDOWN_SELECTION_PRESERVED_ACTION_KEYS = new Set<string>([
   "remove-selected-spacing",
   "toggle-selected-punctuation",
   "delete-from-current-to-end",
+  "delete-from-start-to-current",
 ]);
 
 export function createKeyInfoDock(
