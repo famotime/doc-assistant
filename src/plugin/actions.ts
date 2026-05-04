@@ -43,7 +43,9 @@ export type ActionKey =
   | "split-doc-by-headings"
   | "recognize-doc-images"
   | "set-selection-as-title"
-  | "extract-web-links";
+  | "extract-web-links"
+  | "export-keymap"
+  | "import-keymap";
 
 export type ActionConfig = {
   key: ActionKey;
@@ -53,6 +55,7 @@ export type ActionConfig = {
   group: DockDocActionGroup;
   desktopOnly?: boolean;
   requiresWritableDoc?: boolean;
+  noDocRequired?: boolean;
   runInBackground?: boolean;
   icon: string;
   dockIconText: string;
@@ -120,6 +123,8 @@ const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "recognize-doc-images": "识",
   "set-selection-as-title": "题",
   "extract-web-links": "链",
+  "export-keymap": "出",
+  "import-keymap": "入",
 };
 
 const BASE_ACTIONS: BaseActionConfig[] = [
@@ -199,6 +204,30 @@ const BASE_ACTIONS: BaseActionConfig[] = [
     ),
     group: "export",
     icon: "iconLink",
+  },
+  {
+    key: "export-keymap",
+    commandText: "导出快捷键配置",
+    menuText: "导出快捷键配置",
+    tooltip: createActionTooltip(
+      "导出快捷键配置",
+      "将当前实例的快捷键配置导出为 JSON 文件，可用于在不同实例之间共享。"
+    ),
+    group: "export",
+    noDocRequired: true,
+    icon: "iconUpload",
+  },
+  {
+    key: "import-keymap",
+    commandText: "导入快捷键配置",
+    menuText: "导入快捷键配置",
+    tooltip: createActionTooltip(
+      "导入快捷键配置",
+      "从 JSON 文件导入快捷键配置，仅覆盖当前实例已有的命令快捷键，不会引入不存在的条目。"
+    ),
+    group: "export",
+    noDocRequired: true,
+    icon: "iconDownload",
   },
   {
     key: "move-backlinks",

@@ -143,13 +143,13 @@ export class ActionRunner {
   }
 
   async runAction(action: ActionKey, explicitId?: string, protyle?: ProtyleLike): Promise<ActionRunResult> {
-    const docId = this.deps.resolveDocId(explicitId, protyle);
-    if (!docId) {
-      return this.createNotifiedFailure("context-unavailable", "未找到当前文档", 4000, "error");
-    }
     const config = ACTIONS.find((item) => item.key === action);
     if (!config) {
       return this.createNotifiedFailure("execution-failed", "未找到对应动作", 4000, "error");
+    }
+    const docId = config.noDocRequired ? "" : this.deps.resolveDocId(explicitId, protyle);
+    if (!docId && !config.noDocRequired) {
+      return this.createNotifiedFailure("context-unavailable", "未找到当前文档", 4000, "error");
     }
     if (config.desktopOnly && this.deps.isMobile()) {
       return this.createNotifiedFailure("not-supported", "当前设备不支持此命令", 4000, "info");

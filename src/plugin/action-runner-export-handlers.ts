@@ -10,6 +10,7 @@ import {
 } from "@/services/exporter";
 import { exportMdContent, getDocMetaByID } from "@/services/kernel";
 import { getBacklinkDocs, getChildDocs, getForwardLinkedDocIds } from "@/services/link-resolver";
+import { getKeymap, setKeymap, mergeKeymap } from "@/services/kernel-conf";
 import { PartialActionHandlerMap } from "@/plugin/action-runner-dispatcher";
 
 type CreateExportActionHandlersOptions = {
@@ -136,6 +137,52 @@ export function createExportActionHandlers(
       } catch (error) {
         console.error("提取链接失败:", error);
         showMessage("提取链接失败", 5000, "error");
+      }
+    },
+    "export-keymap": async () => {
+      try {
+        const keymap = await getKeymap();
+        const json = JSON.stringify(keymap, null, 2);
+        const now = new Date();
+        const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `siyuan-keymap-${date}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showMessage("快捷键配置已导出", 3000);
+      } catch (error) {
+        console.error("导出快捷键配置失败:", error);
+        showMessage("导出快捷键配置失败", 5000, "error");
+      }
+    },
+    "import-keymap": async () => {
+      try {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = ".json";
+        const file = await new Promise<File | null>((resolve) => {
+          fileInput.addEventListener("change", () => resolve(fileInput.files?.[0] ?? null));
+          fileInput.click();
+        });
+        if (!file) return;
+
+        const text = await file.text();
+        const source = JSON.parse(text);
+        if (!source?.editor || !source?.general) {
+          showMessage("文件格式不正确，缺少 editor 或 general 字段", 5000, "error");
+          return;
+        }
+
+        const target = await getKeymap();
+        const merged = mergeKeymap(target, source);
+        await setKeymap(merged);
+        showMessage("快捷键配置导入成功，刷新页面后生效", 5000);
+      } catch (error) {
+        console.error("导入快捷键配置失败:", error);
+        showMessage("导入快捷键配置失败", 5000, "error");
       }
     },
   };
