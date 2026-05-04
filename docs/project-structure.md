@@ -1,6 +1,6 @@
 # siyuan-doc-assist 项目结构（详细版）
 
-更新时间：`2026-04-11`
+更新时间：`2026-05-04`
 
 ## 1. 快照范围与统计
 
@@ -10,16 +10,16 @@
 
 | 目录 | 文件数 | 说明 |
 | --- | ---: | --- |
-| `src/` | 107 | 插件源码 |
-| `src/core/` | 27 | 纯逻辑与转换规则 |
-| `src/plugin/` | 23 | 生命周期、动作编排、控制器 |
-| `src/services/` | 38 | Kernel / 文件系统 / AI / 导出服务 |
+| `src/` | 119 | 插件源码 |
+| `src/core/` | 29 | 纯逻辑与转换规则 |
+| `src/plugin/` | 27 | 生命周期、动作编排、控制器 |
+| `src/services/` | 43 | Kernel / 文件系统 / AI / 导出服务 |
 | `src/ui/` | 12 | Dock、Dialog、Setting 面板 UI |
 | `src/types/` | 4 | 类型声明 |
 | `src/i18n/` | 2 | 国际化文案 |
-| `tests/` | 73 | Vitest 用例与 mocks |
+| `tests/` | 87 | Vitest 用例与 mocks |
 | `assets/` | 2 | README 截图资源 |
-| `docs/` | 4 | 结构文档、重构计划、变更记录 |
+| `docs/` | 10 | 结构文档、重构计划、变更记录与 superpowers 计划/设计文档 |
 | `developer_docs/` | 26 | 本地 SiYuan 开发参考 |
 | `reference_docs/` | 26 | 归档参考资料 |
 | `plugin-sample-vite-vue/` | 35 | 模板参考工程 |
@@ -74,7 +74,7 @@
 | `src/index.ts` | 加载全局样式并导出 `plugin-lifecycle` |
 | `src/index.scss` | 插件全局样式 |
 
-### 4.3 `src/core/`（27 个文件）
+### 4.3 `src/core/`（29 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
@@ -104,9 +104,11 @@
 | `src/core/move-core.ts` | 文档移动冲突策略 |
 | `src/core/pinned-tab-placement-core.ts` | 新打开页签在钉住页签后的放置策略 |
 | `src/core/punctuation-toggle-core.ts` | 中英文标点检测与互转 |
+| `src/core/selected-block-style-toggle-core.ts` | 选中块加粗/高亮切换的公共分析与批量计划 |
+| `src/core/split-doc-by-headings-core.ts` | 按标题拆分文档的标题解析、拆分计划与 Markdown 拼装 |
 | `src/core/workspace-path-core.ts` | 工作区路径标准化与 `/api/file/getFile` 请求构造 |
 
-### 4.4 `src/plugin/`（21 个文件）
+### 4.4 `src/plugin/`（25 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
@@ -121,20 +123,24 @@
 | `src/plugin/action-runner-organize-handlers.ts` | 去重、移动、打开汇总页与大文件清单等整理类动作处理器 |
 | `src/plugin/action-runner-selection-handlers.ts` | 选区/选中块动作处理器，如加粗、高亮、空格清理、标点互转、列表块合并 |
 | `src/plugin/action-runner.ts` | 动作执行壳，负责运行态守卫、只读校验、确认对话框、忙碌态与剩余少量主流程 |
+| `src/plugin/action-definitions.ts` | 按分组维护动作静态定义、tooltip 文案和 Dock 图标文本映射 |
 | `src/plugin/alpha-feature-config.ts` | Alpha 功能隐藏配置、隐藏动作过滤与动作到设置项的联动隐藏规则 |
-| `src/plugin/actions.ts` | 动作元数据、分组与说明 |
+| `src/plugin/actions.ts` | 动作元数据聚合出口；基于 grouped definitions 生成 `ACTIONS`、key map 与兼容 helper |
 | `src/plugin/doc-context.ts` | Protyle 兼容类型与文档 ID 提取 |
 | `src/plugin/key-info-controller-dock.ts` | Key-info Dock 回调桥接与文档动作状态投影 |
-| `src/plugin/key-info-controller.ts` | Key-info 控制器，负责 Dock 注册、刷新、导航、导出与交互编排 |
+| `src/plugin/key-info-controller-refresh.ts` | Key-info 刷新过程中的 Dock 状态投影与只读态跳过判断 |
+| `src/plugin/key-info-controller.ts` | Key-info 控制器装配层，负责 Dock 注册、刷新调用、导出与回调桥接 |
+| `src/plugin/key-info-navigation.ts` | Key-info 条目点击后的块内定位、协议跳转节流与高亮闪烁 |
 | `src/plugin/key-info-state.ts` | 关键内容列表合并策略 |
+| `src/plugin/plugin-pinned-tab-manager.ts` | 新页签在钉住页签后的放置协调、已知页签追踪与重试调度 |
 | `src/plugin/plugin-lifecycle-events.ts` | 生命周期事件绑定与解绑辅助 |
 | `src/plugin/plugin-lifecycle-menu.ts` | 标题菜单注册、命令注册与菜单刷新 |
 | `src/plugin/plugin-lifecycle-state.ts` | 插件设置状态默认值、标准化、序列化与持久化，含 AI 与月记模板配置 |
-| `src/plugin/plugin-lifecycle.ts` | 插件主类与组合根，并暴露 `power-buttons` 集成 provider |
+| `src/plugin/plugin-lifecycle.ts` | 插件主类与组合根，负责生命周期入口、状态变更协调，并暴露 `power-buttons` 集成 provider |
 | `src/plugin/power-buttons-provider-types.ts` | 面向 `power-buttons` 的跨插件 provider 协议类型 |
 | `src/plugin/power-buttons-provider.ts` | `power-buttons` 白名单 provider；负责公开命令列表与 `runAction` 路由 |
 
-### 4.5 `src/services/`（39 个文件）
+### 4.5 `src/services/`（43 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
@@ -157,11 +163,13 @@
 | `src/services/kernel-adapter-core.ts` | Kernel 批量结果解析与单条 fallback 读取 |
 | `src/services/kernel-attr.ts` | 块属性读取与写入的轻量封装 |
 | `src/services/kernel-block.ts` | 块读写 API：读取 Kramdown/DOM、增删改块、子块查询 |
+| `src/services/kernel-conf.ts` | 快捷键配置导入/导出与 keymap 合并 |
+| `src/services/kernel-doc-query.ts` | 文档元信息 SQL、子文档查询、notebook 文档分页与 `.sy` 树顺序解析 |
 | `src/services/kernel-file.ts` | 文件与文档 API：移动、重命名、删除、写文件、取文件、列目录 |
 | `src/services/kernel-network.ts` | 网络代理 API：`forwardProxy` 封装 |
 | `src/services/kernel-ref.ts` | 引用、root 映射、子树文档列表等查询 |
 | `src/services/kernel-shared.ts` | SQL 工具函数 |
-| `src/services/kernel.ts` | Kernel 聚合出口与高层 API |
+| `src/services/kernel.ts` | Kernel 稳定公共出口；聚合 block/file/ref/network API，并转发文档查询与少量直接 kernel 请求 |
 | `src/services/key-info-collectors.ts` | 标题项、Markdown 项、元信息项收集 |
 | `src/services/key-info-inline.ts` | DOM/spans 内联标记抽取 |
 | `src/services/key-info-merge.ts` | 多来源内联项去重与优先级合并 |
@@ -215,15 +223,17 @@
 - `plugin/ui`：ActionRunner、设置页、菜单注册、Dock 状态与控制器。
 - `tests/mocks/siyuan.ts`：SiYuan API mock。
 
-### 5.2 全量测试文件列表（71）
+### 5.2 全量测试文件列表（85）
 
 ```text
+tests/action-definitions.test.ts
 tests/action-runner-block-transform.test.ts
 tests/action-runner-loading.test.ts
 tests/actions-grouping.test.ts
 tests/ai-service-config-core.test.ts
 tests/ai-slop-marker-service.test.ts
 tests/ai-summary-service.test.ts
+tests/alpha-feature-config.test.ts
 tests/block-lineage.test.ts
 tests/dedupe-core.test.ts
 tests/dedupe-dialog.test.ts
@@ -242,12 +252,17 @@ tests/image-webp-service.test.ts
 tests/kernel-adapter-core.test.ts
 tests/kernel-child-blocks.test.ts
 tests/kernel-child-docs.test.ts
+tests/kernel-conf.test.ts
+tests/kernel-doc-query-service.test.ts
+tests/kernel-file.test.ts
 tests/kernel-kramdown-compat.test.ts
 tests/kernel-list-docs-subtree.test.ts
+tests/kernel-list-notebook-docs.test.ts
 tests/kernel-map-root.test.ts
 tests/kernel-sy-order.test.ts
 tests/key-info-collectors.test.ts
 tests/key-info-controller-doc-action.test.ts
+tests/key-info-controller-refresh.test.ts
 tests/key-info-controller-state.test.ts
 tests/key-info-core.test.ts
 tests/key-info-dock-controls.test.ts
@@ -256,6 +271,7 @@ tests/key-info-dock-scroll-interaction.test.ts
 tests/key-info-dock-state.test.ts
 tests/key-info-inline.test.ts
 tests/key-info-merge.test.ts
+tests/key-info-navigation.test.ts
 tests/key-info-pipeline.test.ts
 tests/key-info-scroll-core.test.ts
 tests/key-info-scroll-lock-core.test.ts
@@ -286,11 +302,15 @@ tests/plugin-actions.test.ts
 tests/plugin-doc-context.test.ts
 tests/plugin-lifecycle-state.test.ts
 tests/plugin-menu-registration.test.ts
+tests/plugin-pinned-tab-manager.test.ts
 tests/plugin-settings.test.ts
-tests/power-buttons-provider.test.ts
 tests/plugin-tab-placement.test.ts
+tests/power-buttons-provider.test.ts
 tests/punctuation-toggle-core.test.ts
 tests/request.test.ts
+tests/selected-block-style-toggle-core.test.ts
+tests/split-doc-by-headings-core.test.ts
+tests/split-doc-by-headings-service.test.ts
 tests/workspace-path-core.test.ts
 ```
 

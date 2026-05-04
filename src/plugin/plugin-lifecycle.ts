@@ -11,12 +11,6 @@ import {
   DocMenuRegistrationState,
 } from "@/core/doc-menu-registration-core";
 import { buildDefaultKeyInfoFilter, KeyInfoFilter } from "@/core/key-info-core";
-import {
-  collectLayoutTabIds,
-  isPinnedTab,
-  resolveMoveTabNextIdAfterPinned,
-  type PinnedTabPlacementLike,
-} from "@/core/pinned-tab-placement-core";
 import { ActionRunner } from "@/plugin/action-runner";
 import { ACTIONS, ActionKey } from "@/plugin/actions";
 import {
@@ -51,6 +45,7 @@ import {
   setPluginKeyInfoFilter,
   setSinglePluginDocMenuRegistration,
 } from "@/plugin/plugin-lifecycle-state";
+import { createPinnedTabPlacementManager } from "@/plugin/plugin-pinned-tab-manager";
 import { createPluginSettings } from "@/ui/plugin-settings";
 import {
   destroyActionProcessingOverlay,
@@ -62,7 +57,6 @@ import { createPowerButtonsProvider } from "@/plugin/power-buttons-provider";
 import type { PowerButtonsCommandProvider } from "@/plugin/power-buttons-provider-types";
 
 export default class DocLinkToolkitPlugin extends Plugin {
-  private static readonly PINNED_TAB_PLACEMENT_RETRY_DELAYS = [0, 32, 96, 192];
   public setting?: ReturnType<typeof createPluginSettings>;
   private currentDocId = "";
   private currentProtyle?: ProtyleLike;
@@ -78,9 +72,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
     buildDefaultPluginDocMenuState(ACTIONS).keepNewDocAfterPinnedTabs;
   private aiSummaryConfig = buildDefaultPluginDocMenuState(ACTIONS).aiSummaryConfig;
   private monthlyDiaryTemplate = buildDefaultPluginDocMenuState(ACTIONS).monthlyDiaryTemplate;
-  private readonly knownTabIds = new Set<string>();
-  private readonly pendingPinnedTabPlacementTasks =
-    new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly pinnedTabPlacementManager = createPinnedTabPlacementManager();
   private readonly powerButtonsProvider: PowerButtonsCommandProvider = createPowerButtonsProvider({
     pluginVersion: pluginInfo.version,
     runAction: (action) => this.actionRunner.runAction(action),
@@ -131,7 +123,11 @@ export default class DocLinkToolkitPlugin extends Plugin {
     }
     this.currentDocId = id;
     this.currentProtyle = protyle;
-    this.keepPinnedTabsVisibleOnNewDoc(protyle);
+    this.pinnedTabPlacementManager.handleProtyleSwitch({
+      protyle,
+      enabled: this.keepNewDocAfterPinnedTabs,
+      isMobile: this.isMobile,
+    });
     void this.keyInfoController.refresh(id, protyle);
   };
 
@@ -189,7 +185,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
   }
 
   onunload() {
-    this.clearPendingPinnedTabPlacementTasks();
+    this.pinnedTabPlacementManager.clearPendingTasks();
     unbindPluginLifecycleEvents(this.eventBus, {
       onSwitchProtyle: this.onSwitchProtyle,
       onEditorTitleMenu: this.onEditorTitleMenu,
@@ -399,7 +395,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
       return;
     }
 
-    const siyuan = (window as Window & {
+    this.pinnedTabPlacementManager.seedKnownTabIds((window as Window & {
       siyuan?: {
         layout?: {
           centerLayout?: unknown;
@@ -410,175 +406,6 @@ export default class DocLinkToolkitPlugin extends Plugin {
           };
         };
       };
-    }).siyuan;
-    for (const id of collectLayoutTabIds(siyuan?.layout?.centerLayout)) {
-      this.knownTabIds.add(id);
-    }
-    for (const id of collectLayoutTabIds(siyuan?.config?.uiLayout?.layout)) {
-      this.knownTabIds.add(id);
-    }
-  }
-
-  private keepPinnedTabsVisibleOnNewDoc(protyle?: ProtyleLike) {
-    const currentTab = this.getProtyleTab(protyle);
-    if (!currentTab?.id) {
-      return;
-    }
-
-    if (!this.keepNewDocAfterPinnedTabs || this.isMobile) {
-      return;
-    }
-
-    const siblingTabs = Array.isArray(currentTab.parent?.children)
-      ? currentTab.parent.children
-      : [];
-    const isKnownTab = this.knownTabIds.has(currentTab.id);
-    siblingTabs.forEach((tab) => {
-      if (tab?.id) {
-        this.knownTabIds.add(tab.id);
-      }
-    });
-    this.knownTabIds.add(currentTab.id);
-    if (isKnownTab) {
-      return;
-    }
-
-    this.placeTabBehindPinnedAndKeepPinnedVisible(currentTab);
-    this.schedulePinnedTabPlacementRetry(currentTab.id, protyle);
-  }
-
-  private placeTabBehindPinnedAndKeepPinnedVisible(currentTab: PluginTabLike) {
-    const siblingTabs = this.getSiblingTabs(currentTab);
-    if (!siblingTabs.length) {
-      return;
-    }
-
-    const desiredIndex = this.getPinnedTabBoundaryIndex(siblingTabs);
-    if (desiredIndex < 0) {
-      this.revealPinnedTabHeaders(siblingTabs);
-      return;
-    }
-    const currentIndex = siblingTabs.findIndex((tab) => tab.id === currentTab.id);
-    if (currentIndex < 0) {
-      this.revealPinnedTabHeaders(siblingTabs);
-      return;
-    }
-    if (currentIndex === desiredIndex) {
-      this.revealPinnedTabHeaders(siblingTabs);
-      return;
-    }
-
-    const moveTab = currentTab.parent?.moveTab;
-    if (typeof moveTab !== "function") {
-      this.revealPinnedTabHeaders(siblingTabs);
-      return;
-    }
-
-    let latestTabs = siblingTabs;
-    const nextId = resolveMoveTabNextIdAfterPinned(latestTabs, currentTab.id);
-    if (nextId) {
-      try {
-        moveTab(currentTab, nextId);
-        latestTabs = this.getSiblingTabs(currentTab);
-      } catch {
-        latestTabs = this.getSiblingTabs(currentTab);
-      }
-    }
-
-    this.revealPinnedTabHeaders(latestTabs);
-  }
-
-  private schedulePinnedTabPlacementRetry(
-    tabId: string,
-    protyle?: ProtyleLike,
-    attempt = 0
-  ) {
-    const delay =
-      DocLinkToolkitPlugin.PINNED_TAB_PLACEMENT_RETRY_DELAYS[attempt];
-    if (typeof delay === "undefined") {
-      return;
-    }
-
-    if (attempt === 0) {
-      const pending = this.pendingPinnedTabPlacementTasks.get(tabId);
-      if (typeof pending !== "undefined") {
-        clearTimeout(pending);
-      }
-    }
-
-    const task = setTimeout(() => {
-      this.pendingPinnedTabPlacementTasks.delete(tabId);
-      if (!this.keepNewDocAfterPinnedTabs || this.isMobile) {
-        return;
-      }
-      const currentTab = this.getProtyleTab(protyle);
-      if (!currentTab || currentTab.id !== tabId) {
-        return;
-      }
-      this.placeTabBehindPinnedAndKeepPinnedVisible(currentTab);
-      this.schedulePinnedTabPlacementRetry(tabId, protyle, attempt + 1);
-    }, delay);
-    this.pendingPinnedTabPlacementTasks.set(tabId, task);
-  }
-
-  private clearPendingPinnedTabPlacementTasks() {
-    this.pendingPinnedTabPlacementTasks.forEach((task) => {
-      clearTimeout(task);
-    });
-    this.pendingPinnedTabPlacementTasks.clear();
-  }
-
-  private revealPinnedTabHeaders(tabs: PluginTabLike[]) {
-    const firstPinnedTab = tabs.find((tab) => isPinnedTab(tab));
-    const headElement = firstPinnedTab?.headElement;
-    if (!headElement || !(headElement instanceof HTMLElement)) {
-      return;
-    }
-    if (typeof headElement.scrollIntoView === "function") {
-      headElement.scrollIntoView({
-        block: "nearest",
-        inline: "start",
-      });
-      return;
-    }
-    const tabStrip = headElement.parentElement;
-    if (tabStrip) {
-      tabStrip.scrollLeft = 0;
-    }
-  }
-
-  private getSiblingTabs(currentTab: PluginTabLike): PluginTabLike[] {
-    return Array.isArray(currentTab.parent?.children)
-      ? currentTab.parent.children
-      : [];
-  }
-
-  private getPinnedTabBoundaryIndex(tabs: PluginTabLike[]): number {
-    let lastPinnedIndex = -1;
-    tabs.forEach((tab, index) => {
-      if (isPinnedTab(tab)) {
-        lastPinnedIndex = index;
-      }
-    });
-    if (lastPinnedIndex < 0) {
-      return -1;
-    }
-    return lastPinnedIndex + 1;
-  }
-
-  private getProtyleTab(protyle?: ProtyleLike): PluginTabLike | null {
-    const tab = protyle?.model?.parent as PluginTabLike | undefined;
-    if (!tab || typeof tab !== "object") {
-      return null;
-    }
-    return typeof tab.id === "string" ? tab : null;
+    }).siyuan);
   }
 }
-
-type PluginTabLike = PinnedTabPlacementLike & {
-  id: string;
-  parent?: {
-    children?: PluginTabLike[];
-    moveTab?: (tab: PluginTabLike, nextId?: string) => void;
-  };
-};

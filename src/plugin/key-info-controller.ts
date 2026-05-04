@@ -6,9 +6,16 @@ import {
   cloneKeyInfoDockFilter,
   createKeyInfoControllerDockCallbacks,
 } from "@/plugin/key-info-controller-dock";
+import {
+  buildKeyInfoRefreshFailureState,
+  buildKeyInfoRefreshPendingState,
+  buildKeyInfoRefreshSuccessState,
+  buildKeyInfoUnavailableState,
+  shouldSkipReadonlyStateSync,
+} from "@/plugin/key-info-controller-refresh";
+import { createKeyInfoNavigation } from "@/plugin/key-info-navigation";
 import { ActionConfig, ActionKey } from "@/plugin/actions";
 import { ProtyleLike } from "@/plugin/doc-context";
-import { resolveKeyInfoItems } from "@/plugin/key-info-state";
 import { getDocReadonlyState } from "@/services/kernel";
 import { getDocKeyInfo } from "@/services/key-info";
 import { createKeyInfoDock, KeyInfoDockHandle } from "@/ui/key-info-dock";
@@ -36,11 +43,9 @@ export class KeyInfoController {
   private keyInfoDock?: KeyInfoDockHandle;
   private keyInfoRequestId = 0;
   private docReadonlyRequestId = 0;
-  private keyInfoJumpId = 0;
-  private lastProtocolOpenId = "";
-  private lastProtocolOpenAt = 0;
   private keyInfoDocId = "";
   private currentDocReadonly = false;
+  private readonly navigation = createKeyInfoNavigation();
 
   constructor(private readonly deps: KeyInfoControllerDeps) {}
 
@@ -125,27 +130,20 @@ export class KeyInfoController {
     }
     const docId = this.deps.resolveDocId(explicitId, protyle);
     if (!docId) {
-      this.keyInfoDock.setState({
-        docTitle: "",
-        items: [],
-        loading: false,
-        isRefreshing: false,
-        emptyText: "未找到当前文档",
-        scrollContextKey: "",
-      });
+      this.keyInfoDock.setState(buildKeyInfoUnavailableState());
       return;
     }
 
     const requestId = ++this.keyInfoRequestId;
     const currentState = this.keyInfoDock.getState();
-    const isSameDoc = !!this.keyInfoDocId && this.keyInfoDocId === docId;
-    const hasItems = currentState.items.length > 0;
-    this.keyInfoDock.setState({
-      loading: !hasItems || !isSameDoc,
-      isRefreshing: true,
-      emptyText: !hasItems || !isSameDoc ? "加载中..." : currentState.emptyText,
-      scrollContextKey: docId,
-    });
+    const currentDocId = this.keyInfoDocId;
+    this.keyInfoDock.setState(
+      buildKeyInfoRefreshPendingState({
+        currentState,
+        currentDocId,
+        nextDocId: docId,
+      })
+    );
 
     try {
       const activeProtyle = protyle || this.deps.getCurrentProtyle() || (getActiveEditor()?.protyle as ProtyleLike | undefined);
@@ -158,20 +156,15 @@ export class KeyInfoController {
       this.currentDocReadonly = isReadonly;
       this.syncDocActions();
       this.keyInfoDocId = docId;
-      const nextItems = resolveKeyInfoItems({
-        isSameDoc,
-        hasItems,
-        currentItems: currentState.items,
-        latestItems: data.items,
-      });
-      this.keyInfoDock.setState({
-        docTitle: data.docTitle || docId,
-        items: nextItems,
-        loading: false,
-        isRefreshing: false,
-        emptyText: "暂无关键内容",
-        scrollContextKey: docId,
-      });
+      this.keyInfoDock.setState(
+        buildKeyInfoRefreshSuccessState({
+          currentState,
+          currentDocId,
+          nextDocId: docId,
+          docTitle: data.docTitle,
+          latestItems: data.items,
+        })
+      );
     } catch (error: unknown) {
       if (requestId !== this.keyInfoRequestId || !this.keyInfoDock) {
         return;
@@ -183,19 +176,13 @@ export class KeyInfoController {
       this.syncDocActions();
       const message = error instanceof Error ? error.message : String(error);
       showMessage(`加载关键内容失败：${message}`, 7000, "error");
-      const keepItems = isSameDoc && hasItems;
-      this.keyInfoDock.setState({
-        loading: false,
-        isRefreshing: false,
-        emptyText: "加载失败",
-        scrollContextKey: docId,
-        ...(keepItems
-          ? {}
-          : {
-              docTitle: "",
-              items: [],
-            }),
-      });
+      this.keyInfoDock.setState(
+        buildKeyInfoRefreshFailureState({
+          currentState,
+          currentDocId,
+          nextDocId: docId,
+        })
+      );
     }
   }
 
@@ -212,100 +199,22 @@ export class KeyInfoController {
     if (requestId !== this.docReadonlyRequestId || !this.keyInfoDock) {
       return;
     }
-    if (this.currentDocReadonly === readonly && this.keyInfoDocId === docId) {
+    if (shouldSkipReadonlyStateSync({
+      currentDocId: this.keyInfoDocId,
+      nextDocId: docId,
+      currentReadonly: this.currentDocReadonly,
+      nextReadonly: readonly,
+    })) {
       return;
     }
     this.currentDocReadonly = readonly;
     this.syncDocActions();
   }
 
-  private openBlockByProtocol(blockId: string) {
-    const url = `siyuan://blocks/${blockId}`;
-    try {
-      window.open(url);
-    } catch {
-      window.location.href = url;
-    }
-  }
-
-  private openBlockByProtocolThrottled(blockId: string) {
-    const now = performance.now();
-    if (this.lastProtocolOpenId === blockId && now - this.lastProtocolOpenAt < 800) {
-      return;
-    }
-    this.lastProtocolOpenId = blockId;
-    this.lastProtocolOpenAt = now;
-    this.openBlockByProtocol(blockId);
-  }
-
-  private flashBlockElement(target: HTMLElement) {
-    const flashClass = "doc-assistant-keyinfo__flash";
-    target.classList.remove(flashClass);
-    void target.offsetWidth;
-    target.classList.add(flashClass);
-    window.setTimeout(() => {
-      target.classList.remove(flashClass);
-    }, 900);
-  }
-
-  private scheduleFlashAfterScroll(
-    target: HTMLElement,
-    jumpId: number,
-    onTimeout?: () => void
-  ) {
-    const start = performance.now();
-    const minDelay = 160;
-    const maxWait = 2000;
-    const check = () => {
-      if (jumpId !== this.keyInfoJumpId) {
-        return;
-      }
-      const now = performance.now();
-      const viewHeight =
-        window.innerHeight || document.documentElement.clientHeight || 0;
-      if (!viewHeight) {
-        this.flashBlockElement(target);
-        return;
-      }
-      const rect = target.getBoundingClientRect();
-      const center = rect.top + rect.height / 2;
-      const delta = Math.abs(center - viewHeight / 2);
-      const threshold = Math.min(80, viewHeight * 0.1);
-      const ready = delta <= threshold && now - start >= minDelay;
-      if (ready) {
-        this.flashBlockElement(target);
-        return;
-      }
-      if (now - start >= maxWait) {
-        onTimeout?.();
-        return;
-      }
-      window.requestAnimationFrame(check);
-    };
-    window.requestAnimationFrame(check);
-  }
-
   private handleKeyInfoItemClick(item: KeyInfoItem) {
-    const blockId = item.blockId;
-    if (!blockId) {
-      return;
-    }
-    const jumpId = ++this.keyInfoJumpId;
-    const protyle = this.deps.getCurrentProtyle() || (getActiveEditor()?.protyle as ProtyleLike | undefined);
-    const root = protyle?.wysiwyg?.element as HTMLElement | undefined;
-    if (root) {
-      const target = root.querySelector(
-        `[data-node-id="${blockId}"]`
-      ) as HTMLElement | null;
-      if (target) {
-        target.scrollIntoView({ block: "center", behavior: "smooth" });
-        this.scheduleFlashAfterScroll(target, jumpId, () => {
-          this.openBlockByProtocolThrottled(blockId);
-        });
-        return;
-      }
-    }
-    this.openBlockByProtocolThrottled(blockId);
+    this.navigation.handleItemClick(item, () => {
+      return this.deps.getCurrentProtyle() || (getActiveEditor()?.protyle as ProtyleLike | undefined);
+    });
   }
 
   private exportKeyInfoMarkdown() {

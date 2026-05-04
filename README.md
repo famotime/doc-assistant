@@ -6,6 +6,21 @@
 - 展示名称：`文档助手 / Doc Assist`
 - 最低思源版本：`3.5.7`
 
+## 开发说明
+
+- 安装依赖：`pnpm install`
+- 监听构建：`pnpm dev`
+- 生产构建：`pnpm build`
+- 全量测试：`pnpm test`
+- 严格类型检查：`pnpm typecheck:strict`
+
+当前源码结构边界：
+
+- `src/plugin/plugin-lifecycle.ts` 负责插件生命周期入口与依赖装配；页签放置协调已下沉到 `src/plugin/plugin-pinned-tab-manager.ts`
+- `src/plugin/key-info-controller.ts` 负责 key-info Dock 装配；跳转副作用与刷新状态投影分别拆到 `src/plugin/key-info-navigation.ts`、`src/plugin/key-info-controller-refresh.ts`
+- `src/services/kernel.ts` 是稳定的 Kernel 公共出口；文档查询与 `.sy` 顺序解析集中在 `src/services/kernel-doc-query.ts`
+- `src/plugin/actions.ts` 是动作元数据聚合出口；按分组静态定义集中在 `src/plugin/action-definitions.ts`
+
 ## 功能总览
 
 插件安装后会生成一个侧边栏，目前主要提供两大类功能：
