@@ -356,7 +356,7 @@ describe("plugin menu registration", () => {
 
     expect(provider).toEqual(expect.objectContaining({
       protocol: "power-buttons-command-provider",
-      protocolVersion: 1,
+      protocolVersion: 2,
       providerId: "siyuan-doc-assist",
     }));
     expect(await provider.listCommands()).toEqual(

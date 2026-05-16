@@ -31,6 +31,7 @@ import { createOrganizeActionHandlers } from "@/plugin/action-runner-organize-ha
 import { createSelectionActionHandlers } from "@/plugin/action-runner-selection-handlers";
 import { ProtyleLike } from "@/plugin/doc-context";
 import { NetworkLensPluginLike } from "@/services/network-lens-ai-index";
+import { PowerButtonsInvokeContext } from "@/plugin/power-buttons-provider-types";
 
 export type ActionRunResult =
   | {
@@ -56,6 +57,11 @@ type ActionRunnerDeps = {
   getMonthlyDiaryTemplate?: () => string | undefined;
   resolveNetworkLensPlugin?: () => NetworkLensPluginLike | null | undefined;
 };
+
+type ActionRunInput =
+  | string
+  | PowerButtonsInvokeContext
+  | undefined;
 
 const trailingWhitespaceLogger = createDocAssistantLogger("TrailingWhitespace");
 const deleteFromCurrentLogger = createDocAssistantLogger("DeleteFromCurrent");
@@ -94,6 +100,7 @@ function isHighRiskForMarkdownWrite(value: string): boolean {
 export class ActionRunner {
   private isRunning = false;
   private readonly backgroundTaskKeys = new Set<string>();
+  private currentInvokeContext?: PowerButtonsInvokeContext;
 
   private readonly actionHandlers: ActionHandlerMap;
 
@@ -134,6 +141,9 @@ export class ActionRunner {
   }
 
   private async askConfirmWithVisibleDialog(title: string, text: string): Promise<boolean> {
+    if (this.shouldAutoConfirm()) {
+      return true;
+    }
     this.deps.setBusy?.(false);
     try {
       return await this.deps.askConfirm(title, text);
@@ -142,21 +152,29 @@ export class ActionRunner {
     }
   }
 
-  async runAction(action: ActionKey, explicitId?: string, protyle?: ProtyleLike): Promise<ActionRunResult> {
+  async runAction(action: ActionKey, explicitIdOrContext?: ActionRunInput, protyle?: ProtyleLike): Promise<ActionRunResult> {
+    const invokeContext = this.normalizeInvokeContext(explicitIdOrContext);
+    const explicitId = typeof explicitIdOrContext === "string"
+      ? explicitIdOrContext
+      : invokeContext?.docId;
     const config = ACTIONS.find((item) => item.key === action);
     if (!config) {
       return this.createNotifiedFailure("execution-failed", "未找到对应动作", 4000, "error");
     }
+    this.currentInvokeContext = invokeContext;
     const docId = config.noDocRequired ? "" : this.deps.resolveDocId(explicitId, protyle);
     if (!docId && !config.noDocRequired) {
+      this.currentInvokeContext = undefined;
       return this.createNotifiedFailure("context-unavailable", "未找到当前文档", 4000, "error");
     }
     if (config.desktopOnly && this.deps.isMobile()) {
+      this.currentInvokeContext = undefined;
       return this.createNotifiedFailure("not-supported", "当前设备不支持此命令", 4000, "info");
     }
     if (config.requiresWritableDoc) {
       const writable = await this.ensureDocWritable(docId, config.commandText);
       if (!writable) {
+        this.currentInvokeContext = undefined;
         return {
           ok: false,
           errorCode: "context-unavailable",
@@ -188,7 +206,19 @@ export class ActionRunner {
     } finally {
       this.isRunning = false;
       this.deps.setBusy?.(false);
+      this.currentInvokeContext = undefined;
     }
+  }
+
+  private normalizeInvokeContext(input?: ActionRunInput): PowerButtonsInvokeContext | undefined {
+    if (!input || typeof input === "string") {
+      return undefined;
+    }
+    return input;
+  }
+
+  private shouldAutoConfirm(): boolean {
+    return this.currentInvokeContext?.trigger === "workflow-step";
   }
 
   registerCommands(register: (config: ActionConfig, run: () => void) => void) {

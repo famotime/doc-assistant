@@ -4,6 +4,11 @@ export interface PowerButtonsInvokeContext {
   sourcePluginVersion?: string;
   surface?: string;
   buttonId?: string;
+  docId?: string;
+  scope?: "full-doc" | "selection" | "related-docs";
+  selectionBlockIds?: string[];
+  workflowId?: string;
+  stepIndex?: number;
 }
 
 type PowerButtonsInvokeErrorCode =
@@ -32,11 +37,13 @@ export interface PowerButtonsPublicCommand {
   description?: string;
   category?: string;
   desktopOnly?: boolean;
+  supportsTargetDoc?: boolean;
+  supportsSelection?: boolean;
 }
 
 export interface PowerButtonsCommandProvider {
   protocol: "power-buttons-command-provider";
-  protocolVersion: 1;
+  protocolVersion: 2;
   providerId: string;
   providerName: string;
   providerVersion?: string;

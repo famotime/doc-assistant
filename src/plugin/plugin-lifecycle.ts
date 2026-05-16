@@ -75,7 +75,7 @@ export default class DocLinkToolkitPlugin extends Plugin {
   private readonly pinnedTabPlacementManager = createPinnedTabPlacementManager();
   private readonly powerButtonsProvider: PowerButtonsCommandProvider = createPowerButtonsProvider({
     pluginVersion: pluginInfo.version,
-    runAction: (action) => this.actionRunner.runAction(action),
+    runAction: (action, context) => this.actionRunner.runAction(action, context),
   });
 
   private readonly actionRunner: ActionRunner = new ActionRunner({
