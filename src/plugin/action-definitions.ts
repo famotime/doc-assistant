@@ -45,7 +45,8 @@ export type ActionKey =
   | "set-selection-as-title"
   | "extract-web-links"
   | "export-keymap"
-  | "import-keymap";
+  | "import-keymap"
+  | "generate-llm-wiki";
 
 export type ActionConfig = {
   key: ActionKey;
@@ -130,6 +131,7 @@ export const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "extract-web-links": "链",
   "export-keymap": "出",
   "import-keymap": "入",
+  "generate-llm-wiki": "智",
 };
 
 export const ACTION_DEFINITIONS_BY_GROUP: ActionDefinitionGroup[] = [
@@ -481,6 +483,19 @@ export const ACTION_DEFINITIONS_BY_GROUP: ActionDefinitionGroup[] = [
         group: "ai",
         requiresWritableDoc: true,
         icon: "iconTrashcan",
+      },
+      {
+        key: "generate-llm-wiki",
+        commandText: "生成 LLM Wiki 文档",
+        menuText: "生成 LLM Wiki 文档",
+        tooltip: createActionTooltip(
+          "生成 LLM Wiki 文档",
+          "调用脉络镜插件生成 Wiki 页面,需要已安装并配置好脉络镜插件"
+        ),
+        group: "ai",
+        requiresWritableDoc: true,
+        runInBackground: true,
+        icon: "iconLanguage",
       },
     ],
   },

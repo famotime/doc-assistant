@@ -1,5 +1,8 @@
+import type { WikiCommandProvider } from "@/plugin/wiki-command-provider-types";
+
 export type NetworkLensPluginLike = {
   loadData?: (storageName: string) => Promise<any>;
+  getWikiCommandIntegration?: () => WikiCommandProvider | null;
 };
 
 export type NetworkLensDocumentSummary = {
