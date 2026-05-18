@@ -9,6 +9,7 @@ import {
   generateDocumentSummary,
 } from "@/services/ai-summary";
 import { recognizeDocImages } from "@/services/ai-image-ocr";
+import { translateDocParagraphs } from "@/services/ai-paragraph-translation";
 import { NetworkLensPluginLike, loadFreshNetworkLensDocumentSummary } from "@/services/network-lens-ai-index";
 import {
   detectIrrelevantParagraphMarks,
@@ -327,6 +328,37 @@ export function createAiActionHandlers(
       const suffix = report.failedCount > 0 ? `，失败 ${report.failedCount} 张` : "";
       showMessage(
         `图片文字识别完成：识别 ${report.recognizedCount} 张，插入 ${report.insertedCount} 条引用${suffix}`,
+        report.failedCount > 0 ? 7000 : 6000,
+        report.failedCount > 0 ? "error" : "info",
+      );
+    },
+    "translate-doc-paragraphs": async (docId) => {
+      const report = await translateDocParagraphs({
+        config: options.getAiSummaryConfig?.(),
+        docId,
+        onProgress: (current, total) => {
+          showMessage(`段落翻译中（${current}/${total}）`, 3000, "info");
+        },
+      });
+      if (report.scannedParagraphCount <= 0) {
+        showMessage("当前文档未发现可翻译的段落", 5000, "info");
+        return;
+      }
+      if (report.translatableParagraphCount <= 0) {
+        showMessage("当前文档未发现包含英文内容的段落", 5000, "info");
+        return;
+      }
+      if (report.insertedCount <= 0) {
+        if (report.failedCount > 0) {
+          showMessage(`段落翻译失败 ${report.failedCount} 段，请检查 AI 服务配置`, 7000, "error");
+          return;
+        }
+        showMessage("AI 未返回可插入的翻译内容", 5000, "info");
+        return;
+      }
+      const suffix = report.failedCount > 0 ? `，失败 ${report.failedCount} 段` : "";
+      showMessage(
+        `逐段翻译完成：翻译 ${report.translatedCount} 段，插入 ${report.insertedCount} 个译文块${suffix}`,
         report.failedCount > 0 ? 7000 : 6000,
         report.failedCount > 0 ? "error" : "info",
       );

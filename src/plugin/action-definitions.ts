@@ -42,6 +42,7 @@ export type ActionKey =
   | "toggle-selected-punctuation"
   | "split-doc-by-headings"
   | "recognize-doc-images"
+  | "translate-doc-paragraphs"
   | "add-related-links-and-tags"
   | "set-selection-as-title"
   | "extract-web-links"
@@ -128,6 +129,7 @@ export const ACTION_DOCK_ICON_TEXT: Record<ActionKey, string> = {
   "delete-from-start-to-current": "删",
   "split-doc-by-headings": "拆",
   "recognize-doc-images": "识",
+  "translate-doc-paragraphs": "译",
   "add-related-links-and-tags": "链",
   "set-selection-as-title": "题",
   "extract-web-links": "链",
@@ -473,6 +475,19 @@ export const ACTION_DEFINITIONS_BY_GROUP: ActionDefinitionGroup[] = [
         requiresWritableDoc: true,
         runInBackground: true,
         icon: "iconImage",
+      },
+      {
+        key: "translate-doc-paragraphs",
+        commandText: "本文档逐段翻译",
+        menuText: "本文档逐段翻译",
+        tooltip: createActionTooltip(
+          "本文档逐段翻译",
+          "将当前文档中包含英文字母的段落逐段发送给 AI 大模型翻译为中文，并把译文插入到原段落下方。"
+        ),
+        group: "ai",
+        requiresWritableDoc: true,
+        runInBackground: true,
+        icon: "iconLanguage",
       },
       {
         key: "clean-ai-output",

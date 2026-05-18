@@ -22,6 +22,7 @@ const PUBLIC_ACTION_KEYS = new Set<ActionKey>([
   "delete-from-start-to-current",
   "convert-images-to-webp",
   "recognize-doc-images",
+  "translate-doc-paragraphs",
   "add-related-links-and-tags",
   "generate-llm-wiki",
 ]);
@@ -40,6 +41,7 @@ const TARGET_DOC_SUPPORTED_ACTION_KEYS = new Set<ActionKey>([
   "insert-doc-summary",
   "convert-images-to-webp",
   "recognize-doc-images",
+  "translate-doc-paragraphs",
   "add-related-links-and-tags",
   "generate-llm-wiki",
 ]);
