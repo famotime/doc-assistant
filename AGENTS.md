@@ -29,16 +29,24 @@
 - `src/plugin/plugin-lifecycle.ts` is the composition root and main SiYuan plugin class.
 - `src/plugin/actions.ts` defines user-facing actions and grouping metadata.
 - `src/plugin/action-runner.ts` is the main execution shell; specialized handlers are split into:
+  - `src/plugin/action-runner-ai-*-handlers.ts`
+  - `src/plugin/action-runner-cleanup-handlers.ts`
   - `src/plugin/action-runner-export-handlers.ts`
   - `src/plugin/action-runner-organize-handlers.ts`
   - `src/plugin/action-runner-insert-handlers.ts`
   - `src/plugin/action-runner-media-handlers.ts`
+  - `src/plugin/action-runner-selection-handlers.ts`
+  - `src/plugin/action-runner-trim-handlers.ts`
+  - `src/plugin/action-runner-delete-range-handlers.ts`
   - `src/plugin/action-runner-block-transform.ts`
 - Key-info sidebar flow is centered on:
   - `src/plugin/key-info-controller.ts`
   - `src/services/key-info.ts`
+  - `src/services/key-info-model.ts` plus `key-info-text-normalize.ts`, `key-info-span-format.ts`, and `key-info-remark-model.ts`
   - `src/ui/key-info-dock.ts`
+  - `src/core/dock-doc-action-drag-core.ts` for drag/reorder model logic
 - Kernel access is funneled through `src/services/kernel.ts` and related `kernel-*` modules.
+- Global styles enter through `src/index.scss` and are organized as feature partials in `src/styles/`.
 - Prefer keeping logic boundaries sharp:
   - pure transforms in `core/`
   - SiYuan/IO integration in `services/`

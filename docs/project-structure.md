@@ -1,23 +1,23 @@
 # siyuan-doc-assist 项目结构（详细版）
 
-更新时间：`2026-05-04`
+更新时间：`2026-05-19`
 
 ## 1. 快照范围与统计
 
-- 仓库根目录：`D:\MyCodingProjects\siyuan-doc-assist`
-- 当前插件版本：`1.5.0`（来自 `package.json` 与 `plugin.json`）
+- 仓库根目录：`/home/quincyzou/projects/siyuan-doc-assist`
+- 当前插件版本：`1.5.5`（来自 `package.json` 与 `plugin.json`）
 - 统计口径：以当前工作区实际文件为准（不含 `.git` 内部对象）
 
 | 目录 | 文件数 | 说明 |
 | --- | ---: | --- |
-| `src/` | 119 | 插件源码 |
-| `src/core/` | 29 | 纯逻辑与转换规则 |
-| `src/plugin/` | 27 | 生命周期、动作编排、控制器 |
-| `src/services/` | 43 | Kernel / 文件系统 / AI / 导出服务 |
-| `src/ui/` | 12 | Dock、Dialog、Setting 面板 UI |
+| `src/` | 137 | 插件源码 |
+| `src/core/` | 35 | 纯逻辑与转换规则 |
+| `src/plugin/` | 37 | 生命周期、动作编排、控制器 |
+| `src/services/` | 47 | Kernel / 文件系统 / AI / 导出服务 |
+| `src/ui/` | 13 | Dock、Dialog、Setting 面板 UI |
 | `src/types/` | 4 | 类型声明 |
 | `src/i18n/` | 2 | 国际化文案 |
-| `tests/` | 87 | Vitest 用例与 mocks |
+| `tests/` | 96 | Vitest 用例与 mocks |
 | `assets/` | 2 | README 截图资源 |
 | `docs/` | 10 | 结构文档、重构计划、变更记录与 superpowers 计划/设计文档 |
 | `developer_docs/` | 26 | 本地 SiYuan 开发参考 |
@@ -39,6 +39,7 @@
 | `skills/` | 目录 | 本地协作技能脚本与说明 |
 | `src/` | 目录 | 主插件源码 |
 | `tests/` | 目录 | Vitest 测试与 mocks |
+| `src/styles/` | 目录 | SCSS 功能 partial |
 | `tmp/` | 目录 | 临时文件目录 |
 
 ## 3. 根目录关键文件
@@ -72,7 +73,7 @@
 | 文件 | 职责 |
 | --- | --- |
 | `src/index.ts` | 加载全局样式并导出 `plugin-lifecycle` |
-| `src/index.scss` | 插件全局样式 |
+| `src/index.scss` | 样式入口，聚合 `src/styles/` 下的功能 partial |
 
 ### 4.3 `src/core/`（29 个文件）
 
@@ -80,9 +81,13 @@
 | --- | --- |
 | `src/core/ai-service-config-core.ts` | AI 服务配置默认值、规范化与完整性判定 |
 | `src/core/ai-summary-core.ts` | AI 摘要文本清理、内部链接识别与插入位置 |
+| `src/core/ai-concept-map-core.ts` | 概念地图文档标题与子文档路径拼接 |
+| `src/core/ai-marker-action-core.ts` | AI 口水内容/关键内容标记与确认详情文本处理 |
+| `src/core/ai-related-suggestions-core.ts` | AI 相关链接与标签建议归一化、去重与合并 |
 | `src/core/dedupe-core.ts` | 重复标题归一化、分组与保留建议 |
 | `src/core/doc-menu-registration-core.ts` | 文档菜单注册状态、排序与标准化 |
 | `src/core/dock-doc-action-order-core.ts` | Dock 文档动作排序与拖拽检查 |
+| `src/core/dock-doc-action-drag-core.ts` | Dock 文档动作拖拽几何判断与收藏重排 |
 | `src/core/dock-panel-core.ts` | Dock 标签页与动作面板模型构建 |
 | `src/core/export-media-core.ts` | 导出时媒体路径提取、文件名规范化、链接改写 |
 | `src/core/heading-bold-toggle-core.ts` | 标题加粗切换预览与更新计划 |
@@ -104,6 +109,7 @@
 | `src/core/move-core.ts` | 文档移动冲突策略 |
 | `src/core/pinned-tab-placement-core.ts` | 新打开页签在钉住页签后的放置策略 |
 | `src/core/punctuation-toggle-core.ts` | 中英文标点检测与互转 |
+| `src/core/selection-text-transform-core.ts` | 选区换行/标点/空格处理计划与批量更新辅助 |
 | `src/core/selected-block-style-toggle-core.ts` | 选中块加粗/高亮切换的公共分析与批量计划 |
 | `src/core/split-doc-by-headings-core.ts` | 按标题拆分文档的标题解析、拆分计划与 Markdown 拼装 |
 | `src/core/workspace-path-core.ts` | 工作区路径标准化与 `/api/file/getFile` 请求构造 |
@@ -112,7 +118,14 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| `src/plugin/action-runner-ai-handlers.ts` | AI 摘要与 AI 标注类动作处理器 |
+| `src/plugin/action-runner-ai-handlers.ts` | AI 动作聚合入口 |
+| `src/plugin/action-runner-ai-summary-handlers.ts` | AI 摘要、概念地图动作处理器 |
+| `src/plugin/action-runner-ai-marker-handlers.ts` | AI 口水内容与关键内容标记处理器 |
+| `src/plugin/action-runner-ai-media-handlers.ts` | AI 图片 OCR 与逐段翻译处理器 |
+| `src/plugin/action-runner-ai-related-handlers.ts` | AI 相关链接与标签建议处理器 |
+| `src/plugin/action-runner-ai-wiki-handlers.ts` | LLM wiki 生成处理器 |
+| `src/plugin/action-runner-ai-types.ts` | AI handler 依赖类型定义 |
+| `src/plugin/action-runner-ai-shared.ts` | AI handler 共享工具 |
 | `src/plugin/action-runner-block-transform.ts` | 文档级 Markdown 批量改写执行器，负责高风险跳过与结果汇总 |
 | `src/plugin/action-runner-cleanup-handlers.ts` | 文档清理类动作处理器，如空段落、标题空行、链接清理、AI 输出清理 |
 | `src/plugin/action-runner-context.ts` | 当前文档、当前块、选中块上下文解析 |
@@ -122,6 +135,8 @@
 | `src/plugin/action-runner-media-handlers.ts` | 图片转换、移除等媒体动作处理器 |
 | `src/plugin/action-runner-organize-handlers.ts` | 去重、移动、打开汇总页与大文件清单等整理类动作处理器 |
 | `src/plugin/action-runner-selection-handlers.ts` | 选区/选中块动作处理器，如加粗、高亮、空格清理、标点互转、列表块合并 |
+| `src/plugin/action-runner-trim-handlers.ts` | 行尾空格清理执行器 |
+| `src/plugin/action-runner-delete-range-handlers.ts` | 从当前到末尾/从文首到当前删除执行器 |
 | `src/plugin/action-runner.ts` | 动作执行壳，负责运行态守卫、只读校验、确认对话框、忙碌态与剩余少量主流程 |
 | `src/plugin/action-definitions.ts` | 按分组维护动作静态定义、tooltip 文案和 Dock 图标文本映射 |
 | `src/plugin/alpha-feature-config.ts` | Alpha 功能隐藏配置、隐藏动作过滤与动作到设置项的联动隐藏规则 |
@@ -136,6 +151,7 @@
 | `src/plugin/plugin-lifecycle-events.ts` | 生命周期事件绑定与解绑辅助 |
 | `src/plugin/plugin-lifecycle-menu.ts` | 标题菜单注册、命令注册与菜单刷新 |
 | `src/plugin/plugin-lifecycle-state.ts` | 插件设置状态默认值、标准化、序列化与持久化，含 AI 与月记模板配置 |
+| `src/plugin/plugin-lifecycle.ts` | 插件主类与组合根，负责生命周期入口、状态变更协调，并暴露 `power-buttons` 集成 provider |
 | `src/plugin/plugin-lifecycle.ts` | 插件主类与组合根，负责生命周期入口、状态变更协调，并暴露 `power-buttons` 集成 provider |
 | `src/plugin/power-buttons-provider-types.ts` | 面向 `power-buttons` 的跨插件 provider 协议类型 |
 | `src/plugin/power-buttons-provider.ts` | `power-buttons` 白名单 provider；负责公开命令列表与 `runAction` 路由 |
@@ -173,7 +189,10 @@
 | `src/services/key-info-collectors.ts` | 标题项、Markdown 项、元信息项收集 |
 | `src/services/key-info-inline.ts` | DOM/spans 内联标记抽取 |
 | `src/services/key-info-merge.ts` | 多来源内联项去重与优先级合并 |
-| `src/services/key-info-model.ts` | 关键内容 SQL 行模型、文本规范化、标签/备注解析 |
+| `src/services/key-info-model.ts` | 关键内容 SQL 行模型聚合与公共出口 |
+| `src/services/key-info-text-normalize.ts` | 关键内容可见文本归一化、链接/标记剥离 |
+| `src/services/key-info-span-format.ts` | span 类型与 IAL 推断 |
+| `src/services/key-info-remark-model.ts` | 备注/内联 memo 解析与格式化 |
 | `src/services/key-info-order.ts` | 关键内容顺序解析 |
 | `src/services/key-info-pipeline.ts` | 关键内容归一化、补标题与按锚点排序 |
 | `src/services/key-info-query.ts` | blocks/spans 查询、root ID 解析、kramdown map 构建 |
@@ -191,6 +210,7 @@
 | 文件 | 职责 |
 | --- | --- |
 | `src/ui/action-processing-overlay.ts` | 动作执行中的忙碌遮罩 |
+| `src/ui/confirm-detail-dialog.ts` | 带详情/可选项的确认弹窗 UI helper |
 | `src/ui/dialogs.ts` | 去重对话框渲染与事件桥接 |
 | `src/ui/key-info-dock-controls.ts` | Key-info Dock 的静态控制壳：标签、筛选、页脚、文档处理入口 |
 | `src/ui/key-info-dock-doc-actions.ts` | Dock 文档动作区域渲染与交互 |
@@ -223,7 +243,7 @@
 - `plugin/ui`：ActionRunner、设置页、菜单注册、Dock 状态与控制器。
 - `tests/mocks/siyuan.ts`：SiYuan API mock。
 
-### 5.2 全量测试文件列表（85）
+### 5.2 全量测试文件列表（96）
 
 ```text
 tests/action-definitions.test.ts

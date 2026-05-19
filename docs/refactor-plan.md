@@ -2,68 +2,69 @@
 
 ## 1. 项目快照
 
-- 生成日期：2026-05-04
+- 生成日期：2026-05-19
 - 范围：`siyuan-doc-assist` 当前主仓库
-- 目标：基于上一轮已完成的拆分结果，继续收敛剩余高复杂度编排层，优先降低组合根、关键内容控制器和 kernel 聚合层的耦合与回归面
-- 文档刷新目标：`docs/project-structure.md`、`README.md`
-- 计划基线：本文件覆盖上一轮计划，上一轮已完成项视为当前仓库基线，不在本轮重复执行
+- 目标：在上一轮模块拆分完成后的新基线上，继续收敛动作执行、AI 文档变更、选区处理、Key-info 模型与 Dock UI 的高复杂度区域，优先为文档变更路径补足测试后再拆分实现
+- 当前基线观察：工作区干净；`package.json` 版本为 `1.5.5`；当前 `src/` 约 119 个 TypeScript 文件，`tests/` 约 91 个 Vitest 文件
+- 计划边界：本文件只制定下一轮候选项；开始实施任何条目前需用户明确批准具体 ID
 
 ## 2. 架构与模块分析
 
 | 模块 | 关键文件 | 当前职责 | 主要痛点 | 测试覆盖情况 |
 | --- | --- | --- | --- | --- |
-| 入口与生命周期组合根 | `src/index.ts`、`src/plugin/plugin-lifecycle.ts`、`src/plugin/plugin-lifecycle-state.ts`、`src/plugin/plugin-lifecycle-menu.ts` | 插件启动、状态装载与持久化、Dock/命令注册、标题菜单接入、页签放置策略、对外 provider 暴露 | `plugin-lifecycle.ts` 仍约 584 行，状态突变、事件响应、设置页装配、Dock 协调、页签放置重试逻辑和外部集成都在一个类中，后续新增运行时能力时回归面较大 | `tests/plugin-menu-registration.test.ts`、`tests/plugin-tab-placement.test.ts`、`tests/plugin-lifecycle-state.test.ts` |
-| 关键内容侧栏编排 | `src/plugin/key-info-controller.ts`、`src/plugin/key-info-controller-dock.ts`、`src/services/key-info.ts`、`src/ui/key-info-dock.ts` | Dock 注册、关键内容刷新、只读状态同步、文档动作桥接、滚动定位、导出 Markdown | `key-info-controller.ts` 同时承担异步请求竞态控制、Dock 状态投影、点击跳转与下载副作用；刷新失败和销毁时序虽已有测试，但逻辑仍集中在单控制器中 | `tests/key-info-controller-doc-action.test.ts`、`tests/key-info-controller-state.test.ts`、`tests/key-info-dock-scroll-interaction.test.ts`、`tests/key-info-dock-state.test.ts` |
-| Kernel 聚合与文档查询层 | `src/services/kernel.ts`、`src/services/kernel-*.ts` | 统一导出 block/file/ref/network API，并承接文档元信息 SQL、子文档查询、`.sy` 树顺序解析等高层查询 | `kernel.ts` 约 488 行，barrel re-export 与具体查询实现混放；SQL 查询、路径归一化、`.sy` 树读取混在一起，后续扩展文档查询时边界不够清晰 | `tests/kernel-list-notebook-docs.test.ts`、`tests/kernel-child-docs.test.ts`、`tests/kernel-map-root.test.ts`、`tests/kernel-list-docs-subtree.test.ts`、`tests/kernel-conf.test.ts` |
-| 动作元数据定义 | `src/plugin/actions.ts` | 声明命令 key、分组、文案、提示、Dock 图标文本等元数据 | 文件约 692 行，主要是静态配置；维护成本存在，但行为逻辑简单，风险低于前三项，更适合作为清理型重构 | `tests/plugin-actions.test.ts`、`tests/actions-grouping.test.ts` |
-| 插件状态标准化 | `src/plugin/plugin-lifecycle-state.ts` | 菜单注册、收藏动作、关键内容筛选、AI 配置、月记模板的默认值、归一化和序列化 | 文件体量可控，边界相对明确；当前主要风险不在状态纯函数，而在 `plugin-lifecycle.ts` 中对这些状态的读写编排 | `tests/plugin-lifecycle-state.test.ts` |
+| 入口与生命周期组合根 | `src/index.ts`、`src/plugin/plugin-lifecycle.ts`、`src/plugin/plugin-lifecycle-state.ts`、`src/plugin/plugin-lifecycle-menu.ts`、`src/plugin/plugin-pinned-tab-manager.ts` | 插件加载、事件绑定、设置页装配、持久化状态、确认弹窗、Dock/命令注册、`power-buttons` provider 暴露 | 上一轮已拆出页签协调等模块，但 `plugin-lifecycle.ts` 仍约 490 行；确认详情弹窗 HTML、设置页创建、状态变更后的 Dock 同步仍集中在组合根 | `tests/plugin-menu-registration.test.ts`、`tests/plugin-tab-placement.test.ts`、`tests/plugin-lifecycle-state.test.ts`、`tests/plugin-settings.test.ts`、`tests/power-buttons-provider.test.ts` |
+| 动作执行外壳与清理/删除主流程 | `src/plugin/action-runner.ts`、`src/plugin/action-runner-cleanup-handlers.ts`、`src/plugin/action-runner-dispatcher.ts`、`src/core/markdown-cleanup-*` | `ActionKey` 执行入口、运行态/后台态守卫、只读校验、确认弹窗协调、行尾空格清理、从当前/从文首删除流程 | `action-runner.ts` 仍约 708 行，执行外壳和高风险 Markdown 写入重试/验证逻辑混在一起；行尾空格路径有批量 kramdown、DOM fallback、重试、日志与提示，回归面高 | `tests/action-runner-loading.test.ts` 覆盖大量流程；`tests/markdown-cleanup-*.test.ts` 覆盖纯清理规则；缺少针对抽离后 handler 的小粒度测试 |
+| AI 动作处理器 | `src/plugin/action-runner-ai-handlers.ts`、`src/services/ai-summary.ts`、`src/services/ai-slop-marker.ts`、`src/services/ai-image-ocr.ts`、`src/services/ai-paragraph-translation.ts`、`src/services/network-lens-ai-index.ts` | AI 摘要/概念地图、口水内容删除线标记、关键内容加粗、图片 OCR、逐段翻译、相关链接与标签、LLM wiki 占位入口 | `action-runner-ai-handlers.ts` 约 1042 行，8 个动作与大量纯解析/Markdown 标记 helper 同处一文件；AI 返回归一化、预览确认、属性合并、块更新副作用耦合，近期功能增长后最容易继续膨胀 | `tests/action-runner-loading.test.ts` 覆盖 AI action 集成路径；`tests/ai-*-service.test.ts` 覆盖服务层；缺少 `action-runner-ai-*` 拆分后的专门 handler/core 测试 |
+| 选区/选中块动作处理器 | `src/plugin/action-runner-selection-handlers.ts`、`src/core/selected-block-style-toggle-core.ts`、`src/core/list-block-merge-core.ts`、`src/core/punctuation-toggle-core.ts` | 选中块加粗/高亮、去空格、标点互转、换行/分段互转、列表块合并，并兼容 DOM 选区和 kramdown fallback | 文件约 845 行；DOM Range 处理、文本节点改写、kramdown fallback、确认文案、批量更新在一个工厂函数里；部分逻辑已有 core，但选区输入归一化和更新计划仍不够独立 | `tests/action-runner-loading.test.ts` 覆盖选区集成场景；`tests/*style*`、`tests/list-block-merge-core.test.ts`、`tests/punctuation-toggle-core.test.ts` 覆盖部分纯逻辑；缺少 linebreak/selection DOM helper 的独立测试 |
+| Key-info 数据模型与抽取 | `src/core/key-info-core.ts`、`src/services/key-info-model.ts`、`src/services/key-info-inline.ts`、`src/services/key-info-pipeline.ts`、`src/services/key-info-collectors.ts`、`src/services/key-info.ts` | Markdown/SQL/DOM 来源的标题、格式、标签、链接、备注、代码等关键内容抽取、归一化、去重、排序与渲染 | `key-info-model.ts` 约 479 行，HTML entity 解码、链接剥离、代码片段提取、span type 判定、备注解析混杂；`key-info-core.ts` 也包含 Markdown masking 和 regex 抽取，边界容易重复 | `tests/key-info-*.test.ts` 覆盖服务、pipeline、inline、dock 行为；模型函数多为间接覆盖，拆分前需要补直接测试以锁定边界文本处理 |
+| Key-info Dock 文档动作 UI | `src/ui/key-info-dock.ts`、`src/ui/key-info-dock-doc-actions.ts`、`src/ui/key-info-dock-controls.ts`、`src/core/dock-doc-action-order-core.ts`、`src/core/dock-panel-core.ts` | Dock 面板、过滤器、文档动作分组、收藏、拖拽排序、后台运行态与列表渲染 | `key-info-dock-doc-actions.ts` 约 660 行，拖拽排序、折叠组状态、图标渲染、搜索/收藏/按钮事件都在单个 render 函数附近；DOM 测试较重，后续 UI 调整成本高 | `tests/key-info-dock-*.test.ts`、`tests/dock-doc-action-order-core.test.ts`、`tests/dock-panel-core.test.ts` 覆盖主要交互；拖拽/过滤模型可进一步用纯函数测试减轻 DOM 回归面 |
+| Kernel 与服务适配层 | `src/services/kernel.ts`、`src/services/kernel-*.ts`、`src/services/exporter*.ts`、`src/services/link-resolver.ts`、`src/services/large-documents-report.ts` | SiYuan Kernel API、文件/块/引用/网络、导出、链接解析与大文档报告 | 上一轮已将文档查询拆到 `kernel-doc-query.ts`；当前边界相对清晰。后续主要风险在高层服务编排而非 barrel 出口 | `tests/kernel-*.test.ts`、`tests/exporter-*.test.ts`、`tests/link-resolver-*.test.ts` 覆盖较完整，本轮暂不作为高优先级 |
+| 样式入口 | `src/index.scss` | 去重对话框、设置页、Key-info Dock、处理遮罩、确认详情弹窗等所有样式 | 单文件约 1863 行，多个功能区样式混在一起，且部分选择器有重复增强段；视觉回归难靠单测发现，适合作为低风险、低优先级的结构清理 | 缺少视觉快照测试；可用 `pnpm build`、相关 DOM 测试与人工截图验证作为最低保障 |
+| 现有测试结构 | `tests/action-runner-loading.test.ts`、`tests/key-info-service-heading-inline.test.ts` 等 | 大量 Vitest 单测/准集成测试 | `tests/action-runner-loading.test.ts` 约 3284 行，承载过多 action runner 场景；重构时应同步拆出更聚焦的测试文件，降低单文件维护成本 | 全量 `pnpm test` 是最终门禁；每项需先跑对应定向测试，再跑全量测试 |
 
 ## 3. 按优先级排序的重构待办
 
 | ID | 优先级 | 模块/场景 | 涉及文件 | 重构目标 | 行为不变式 | 风险等级 | 重构前测试清单 | 文档影响 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| RF-201 | P0 | `plugin-lifecycle` 组合根继续瘦身，拆分运行时协调职责 | `src/plugin/plugin-lifecycle.ts`；新增 `src/plugin/plugin-pinned-tab-manager.ts`；相关测试 `tests/plugin-menu-registration.test.ts`、`tests/plugin-tab-placement.test.ts`、`tests/plugin-lifecycle-state.test.ts`、`tests/plugin-pinned-tab-manager.test.ts` | 让 `plugin-lifecycle.ts` 主要保留 SiYuan 插件生命周期入口与依赖装配，把页签放置、菜单/命令刷新协作、状态变更后的副作用同步进一步下沉到专门模块 | `onload` / `onunload` / `openSetting` / `getPowerButtonsIntegration` 对外行为保持不变；`doc-menu-registration` 存储结构保持兼容；标题菜单、命令注册顺序、Dock 初始化、页签重排与重试策略、忙碌遮罩时机保持一致 | 高 | - [x] `pnpm vitest run tests/plugin-pinned-tab-manager.test.ts tests/plugin-tab-placement.test.ts tests/plugin-menu-registration.test.ts tests/plugin-lifecycle-state.test.ts`<br>- [x] 覆盖菜单状态恢复、命令注册顺序、收藏动作持久化、power-buttons provider 暴露<br>- [x] 覆盖页签重排、重试、保持钉住页签可见等回归场景 | `docs/project-structure.md` 需补充新的 lifecycle 协调模块；`README.md` 仅在开发结构说明受影响时同步 | done |
-| RF-202 | P1 | `key-info-controller` 拆分刷新/只读状态同步与跳转副作用 | `src/plugin/key-info-controller.ts`；新增 `src/plugin/key-info-navigation.ts`、`src/plugin/key-info-controller-refresh.ts`；相关测试 `tests/key-info-controller-doc-action.test.ts`、`tests/key-info-controller-state.test.ts`、`tests/key-info-dock-scroll-interaction.test.ts`、`tests/key-info-controller-refresh.test.ts`、`tests/key-info-navigation.test.ts` | 让控制器收敛为 Dock 装配与回调入口，把刷新流程、请求竞态控制、只读态同步、块跳转/高亮/下载副作用拆成可单测模块 | Dock UI 结构、过滤器持久化、文档动作透传参数、只读态禁用逻辑、平滑滚动与协议跳转兜底、导出文件命名规则保持不变 | 中 | - [x] `pnpm vitest run tests/key-info-navigation.test.ts tests/key-info-controller-refresh.test.ts tests/key-info-controller-doc-action.test.ts tests/key-info-controller-state.test.ts tests/key-info-dock-scroll-interaction.test.ts tests/key-info-dock-state.test.ts`<br>- [x] 覆盖刷新失败后销毁、筛选器恢复、只读状态切换、收藏动作拖拽排序<br>- [x] 覆盖块内定位成功与协议跳转兜底场景 | `docs/project-structure.md` 需补充 key-info 控制器 helper；`README.md` 正常情况下只做最小同步 | done |
-| RF-203 | P1 | `kernel.ts` 拆分文档查询实现与公共导出层 | `src/services/kernel.ts`；新增 `src/services/kernel-doc-query.ts`；相关测试 `tests/kernel-list-notebook-docs.test.ts`、`tests/kernel-child-docs.test.ts`、`tests/kernel-map-root.test.ts`、`tests/kernel-list-docs-subtree.test.ts`、`tests/kernel-conf.test.ts`、`tests/kernel-doc-query-service.test.ts` | 保留 `@/services/kernel` 作为稳定公共入口，同时把文档元信息 SQL、子文档查询、`.sy` 树顺序解析从 barrel 文件移出，建立更清晰的查询边界 | `@/services/kernel` 的现有导出名与调用方式保持兼容；文档标题提取、路径归一化、直接子文档过滤、根文档 ID 回退、分页 SQL 行为保持不变 | 中 | - [x] `pnpm vitest run tests/kernel-doc-query-service.test.ts tests/kernel-sy-order.test.ts tests/kernel-list-notebook-docs.test.ts tests/kernel-child-docs.test.ts tests/kernel-map-root.test.ts tests/kernel-list-docs-subtree.test.ts tests/kernel-conf.test.ts`<br>- [x] 覆盖分页读取、直接子文档过滤、空 `root_id` 回退、notebook 配置读取与 `.sy` 顺序解析场景 | `docs/project-structure.md` 需更新 kernel 查询层职责映射；`README.md` 仅在内部结构说明发生变化时同步 | done |
-| RF-204 | P2 | `actions.ts` 静态元数据按分组拆分 | `src/plugin/actions.ts`；新增 `src/plugin/action-definitions.ts`；相关测试 `tests/plugin-actions.test.ts`、`tests/actions-grouping.test.ts`、`tests/action-definitions.test.ts` | 降低新增命令时对超长静态配置文件的编辑摩擦，让导出/整理/插入/编辑/图片等动作定义按分组组织 | 所有 `ActionKey`、分组、命令文案、菜单文案、tooltip、Dock 图标文本、默认排序与隐藏配置联动保持不变 | 低 | - [x] `pnpm vitest run tests/action-definitions.test.ts tests/plugin-actions.test.ts tests/actions-grouping.test.ts`<br>- [x] 覆盖 action key 唯一性、分组一致性、文案约束与 alpha 隐藏行为相关回归 | `docs/project-structure.md` 需补充动作定义拆分方式；`README.md` 通常无需用户可见更新 | done |
+| RF-301 | P0 | AI action handler 按能力拆分，并抽出纯更新/解析 helper | `src/plugin/action-runner-ai-handlers.ts`；拟新增 `src/plugin/action-runner-ai-summary-handlers.ts`、`src/plugin/action-runner-ai-marker-handlers.ts`、`src/plugin/action-runner-ai-related-handlers.ts` 或等价小模块；可新增 `src/core/ai-marker-action-core.ts`、`src/core/ai-related-suggestions-core.ts`；相关测试 `tests/action-runner-ai-handlers.test.ts`、`tests/action-runner-loading.test.ts`、`tests/ai-*-service.test.ts` | 保留 `createAiActionHandlers` 公共入口，把摘要/概念地图、段落标记、图片 OCR/翻译、相关链接标签拆成独立 handler；将 AI payload 归一化、待更新块计划、确认详情构造等纯逻辑移到可单测模块 | `ActionKey`、提示文案语义、确认前后 busy 状态、自动确认 workflow 行为、AI 配置读取、Network Lens fallback、块更新顺序、标签合并、协议打开目标保持不变 | 高 | - [ ] 新增/迁移 AI handler 定向测试，覆盖摘要插入位置、概念地图子文档路径、口水内容片段标记、关键内容加粗、相关链接/标签选择写入、取消确认不写入<br>- [ ] `pnpm vitest run tests/action-runner-loading.test.ts tests/ai-summary-service.test.ts tests/ai-slop-marker-service.test.ts tests/ai-image-ocr-service.test.ts tests/ai-paragraph-translation-service.test.ts tests/network-lens-ai-index.test.ts`<br>- [ ] 抽离后再运行同一组测试和 `pnpm test` | `docs/project-structure.md` 需记录新的 AI handler/core 模块 | done |
+| RF-302 | P0 | `action-runner.ts` 瘦身：行尾空格清理与前后段落删除 handler 外移 | `src/plugin/action-runner.ts`；拟新增 `src/plugin/action-runner-trim-handlers.ts`、`src/plugin/action-runner-delete-range-handlers.ts` 或并入 cleanup handler；可能新增 `src/core/trailing-whitespace-update-core.ts`；相关测试 `tests/action-runner-cleanup-handlers.test.ts`、`tests/action-runner-loading.test.ts`、`tests/markdown-cleanup-*.test.ts` | 让 `ActionRunner` 只保留运行态守卫、只读校验、后台任务、确认桥接与 dispatch；将行尾空格扫描/高风险判断/DOM fallback/重试验证、从当前到末尾/从文首到当前删除移出 | `runAction` 返回结构、`setBusy` 时机、后台任务互斥、只读文档提示、行尾空格高风险跳过策略、kramdown 与 DOM 写入 fallback、重试次数/延迟语义、删除范围与嵌套块映射保持不变 | 高 | - [ ] 为行尾空格更新计划新增小粒度测试：普通 markdown、含 block IAL、含备注/引用高风险 DOM fallback、无变化、验证仍脏的日志摘要<br>- [ ] 为删除范围新增 handler 测试：当前块缺失、嵌套块映射、删除失败提示、用户取消不删除<br>- [ ] `pnpm vitest run tests/action-runner-loading.test.ts tests/markdown-cleanup-core.test.ts tests/markdown-cleanup-blocks.test.ts`<br>- [ ] 抽离后再运行同一组测试和 `pnpm test` | `docs/project-structure.md` 需更新 action runner helper 职责 | done |
+| RF-303 | P1 | 选区动作处理器拆分 DOM selection 与 kramdown fallback | `src/plugin/action-runner-selection-handlers.ts`；拟新增 `src/plugin/action-runner-selection-style-handlers.ts`、`src/plugin/action-runner-selection-text-handlers.ts`、`src/plugin/action-runner-selection-structure-handlers.ts` 或等价模块；可能新增 `src/core/selection-text-transform-core.ts`、`src/core/linebreak-toggle-core.ts` | 将选中块样式、选区文本清理/标点、换行分段互转、列表合并拆分；把“选区输入 -> 更新计划 -> 执行结果摘要”做成纯函数或小 handler，降低 DOM 测试耦合 | 显式选中块优先于普通选区、DOM 直接改写成功时不走 kramdown fallback、标点模式检测、行/段互转确认内容、列表合并删除顺序、失败/跳过提示保持不变 | 中 | - [ ] 新增 linebreak/selection text core 测试：单块局部选区、多块选中、无选区、读取失败、更新失败、中文/英文标点模式<br>- [ ] `pnpm vitest run tests/action-runner-loading.test.ts tests/punctuation-toggle-core.test.ts tests/selected-block-style-toggle-core.test.ts tests/list-block-merge-core.test.ts`<br>- [ ] 抽离后再运行同一组测试和 `pnpm test` | `docs/project-structure.md` 需记录新的 selection handler/core 模块 | done |
+| RF-304 | P1 | Key-info model 拆分文本归一化、span 判定与备注/代码解析 | `src/services/key-info-model.ts`、`src/core/key-info-core.ts`；拟新增 `src/services/key-info-text-normalize.ts`、`src/services/key-info-span-format.ts`、`src/services/key-info-remark-model.ts` 或等价模块；相关测试 `tests/key-info-model.test.ts`、`tests/key-info-inline.test.ts`、`tests/key-info-pipeline.test.ts` | 将 HTML/Markdown 可见文本归一化、链接/代码剥离、span type + IAL 判定、备注解析拆成边界明确的模型模块；保留服务层导出兼容 | Key-info 类型识别、标签去重顺序、备注文本格式、内联代码高亮识别、链接可见文本、list prefix 展示、SQL literal escape 与 chunk 行为保持不变 | 中 | - [ ] 新增 `tests/key-info-model.test.ts` 直接覆盖 `normalizeInlineVisibleText`、`extractHighlightInlineCodeTexts`、`resolveSpanFormatType`、`parseRemarkText`、`extractInlineMemoHint` 等边界<br>- [ ] `pnpm vitest run tests/key-info-model.test.ts tests/key-info-inline.test.ts tests/key-info-pipeline.test.ts tests/key-info-service-heading-inline.test.ts tests/key-info-service-list-prefix.test.ts tests/key-info-core.test.ts`<br>- [ ] 抽离后再运行同一组测试和 `pnpm test` | `docs/project-structure.md` 需更新 Key-info 服务模型职责 | done |
+| RF-305 | P1 | Key-info Dock 文档动作 UI 拆分渲染、拖拽和收藏模型 | `src/ui/key-info-dock-doc-actions.ts`、`src/ui/key-info-dock.ts`、`src/core/dock-doc-action-order-core.ts`；拟新增 `src/ui/key-info-dock-action-groups.ts`、`src/ui/key-info-dock-action-row.ts` 或 `src/core/dock-doc-action-drag-core.ts` | 从 660 行 render 模块中抽出拖拽 reorder/insert-before 判定、分组折叠状态、图标节点创建和行渲染；让 UI 层更多调用可测试模型 | 收藏动作排序、拖拽 drop-before/drop-after 行为、折叠状态保留、搜索过滤、禁用态/后台运行态、SVG 图标 fallback、空收藏提示保持不变 | 中 | - [ ] 新增纯函数测试覆盖 favorite reorder、insert-before 判定、分组 label 计数/折叠状态<br>- [ ] `pnpm vitest run tests/key-info-dock-controls.test.ts tests/key-info-dock-state.test.ts tests/key-info-dock-scroll-interaction.test.ts tests/dock-doc-action-order-core.test.ts tests/dock-panel-core.test.ts`<br>- [ ] 抽离后再运行同一组测试和 `pnpm test` | `docs/project-structure.md` 需更新 UI 模块清单 | done |
+| RF-306 | P2 | 生命周期确认详情弹窗下沉到 UI 模块 | `src/plugin/plugin-lifecycle.ts`；拟新增 `src/ui/confirm-detail-dialog.ts`；相关测试 `tests/plugin-confirm-detail-dialog.test.ts`、`tests/plugin-menu-registration.test.ts` | 将带详情/可选择项的确认弹窗 HTML、转义和按钮事件从组合根移出，使 lifecycle 只保留依赖装配和回调 | 普通 `confirm()` 路径不变；详情项 HTML 转义、`selected` 回写、确认/取消 resolve 值、按钮文案和宽度保持不变 | 低 | - [ ] 补/迁移 `confirm-detail-dialog` 测试：HTML 转义、可选项默认勾选、取消不改写、确认回写 selected<br>- [ ] `pnpm vitest run tests/plugin-confirm-detail-dialog.test.ts tests/plugin-menu-registration.test.ts tests/plugin-settings.test.ts`<br>- [ ] 抽离后再运行同一组测试和 `pnpm test` | `docs/project-structure.md` 需新增确认详情 UI helper | done |
+| RF-307 | P2 | `src/index.scss` 按功能区拆分并同步结构文档 | `src/index.scss`；拟新增 `src/styles/dedupe.scss`、`src/styles/settings.scss`、`src/styles/key-info.scss`、`src/styles/action-processing.scss`、`src/styles/confirm-detail.scss` 或等价 partial；`src/index.ts` 或 `src/index.scss` 保持统一入口 | 降低样式单文件维护成本，按 UI 模块组织样式；保持构建入口和 class 名不变 | 所有现有 class/selector 名称、动画名、响应式规则、颜色/间距语义、主题变量引用保持不变；`src/index.ts` 仍加载一个稳定样式入口或等价 imports | 低 | - [ ] 拆分前记录样式分区，确保没有 selector 丢失<br>- [ ] `pnpm vitest run tests/action-processing-overlay.test.ts tests/plugin-settings.test.ts tests/key-info-dock-controls.test.ts tests/key-info-dock-scroll-interaction.test.ts`<br>- [ ] 抽离后运行同一组测试、`pnpm build` 和 `pnpm test` | `docs/project-structure.md` 必须同步样式目录；可顺便刷新版本/文件统计 | done |
 
 优先级说明：
-- `P0`：价值和风险都最高，优先执行
-- `P1`：价值或风险中等，放在 `P0` 之后
-- `P2`：低风险清理项，最后执行
+- `P0`：文档变更路径复杂、风险高且近期增长快；执行时必须先补定向测试
+- `P1`：中等风险或中等维护价值；在 P0 完成并稳定后执行
+- `P2`：低风险结构清理和文档/样式维护；最后执行
 
 状态说明：
-- `pending`
-- `in_progress`
-- `done`
-- `blocked`
+- `pending`：尚未开始
+- `in_progress`：已获批并正在执行
+- `done`：已完成代码、测试与文档同步
+- `blocked`：因测试基线、需求不清或外部依赖阻塞
 
 ## 4. 执行日志
 
 | ID | 开始日期 | 结束日期 | 验证命令 | 结果 | 已刷新文档 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
-| RF-201 | 2026-05-04 | 2026-05-04 | `pnpm vitest run tests/plugin-pinned-tab-manager.test.ts tests/plugin-tab-placement.test.ts tests/plugin-menu-registration.test.ts tests/plugin-lifecycle-state.test.ts`；`pnpm test` | pass | 待定 | 新增 `plugin-pinned-tab-manager` 与 3 条定向单测；`plugin-lifecycle.ts` 不再内嵌页签放置状态、重试与已知页签追踪逻辑 |
-| RF-202 | 2026-05-04 | 2026-05-04 | `pnpm vitest run tests/key-info-navigation.test.ts tests/key-info-controller-refresh.test.ts tests/key-info-controller-doc-action.test.ts tests/key-info-controller-state.test.ts tests/key-info-dock-scroll-interaction.test.ts tests/key-info-dock-state.test.ts`；`pnpm test` | pass | 待定 | 新增导航与刷新纯函数测试 8 条；`key-info-controller.ts` 已抽离块跳转/协议打开/闪烁逻辑与刷新状态投影 helper |
-| RF-203 | 2026-05-04 | 2026-05-04 | `pnpm vitest run tests/kernel-doc-query-service.test.ts tests/kernel-sy-order.test.ts tests/kernel-list-notebook-docs.test.ts tests/kernel-child-docs.test.ts tests/kernel-map-root.test.ts tests/kernel-list-docs-subtree.test.ts tests/kernel-conf.test.ts`；`pnpm test` | pass | 待定 | 新增 `kernel-doc-query` 纯函数测试 5 条；`kernel.ts` 已收敛为稳定公共出口，文档查询与 `.sy` 顺序逻辑迁至专门模块 |
-| RF-204 | 2026-05-04 | 2026-05-04 | `pnpm vitest run tests/action-definitions.test.ts tests/plugin-actions.test.ts tests/actions-grouping.test.ts`；`pnpm test` | pass | 待定 | 新增 grouped definitions 结构测试 2 条；`actions.ts` 已收敛为公共聚合出口，按组静态定义迁至 `action-definitions.ts` |
+| RF-301 | 2026-05-19 | 2026-05-19 | `corepack pnpm vitest run tests/ai-marker-action-core.test.ts tests/ai-related-suggestions-core.test.ts tests/ai-summary-service.test.ts tests/ai-slop-marker-service.test.ts tests/ai-image-ocr-service.test.ts tests/ai-paragraph-translation-service.test.ts tests/network-lens-ai-index.test.ts tests/action-runner-loading.test.ts` | pass | `docs/project-structure.md`、`AGENTS.md`、`CLAUDE.md` | AI handler 拆分为 summary / marker / media / related / wiki 小模块，并新增纯逻辑核心测试 |
+| RF-302 | 2026-05-19 | 2026-05-19 | `corepack pnpm vitest run tests/markdown-cleanup-core.test.ts tests/markdown-cleanup-blocks.test.ts tests/action-runner-loading.test.ts` | pass | `docs/project-structure.md`、`AGENTS.md`、`CLAUDE.md` | 新增 trim 与 delete-range handlers；`action-runner.ts` 仅保留执行壳和 handler 聚合 |
+| RF-303 | 2026-05-19 | 2026-05-19 | `corepack pnpm vitest run tests/selection-text-transform-core.test.ts tests/punctuation-toggle-core.test.ts tests/selected-block-style-toggle-core.test.ts tests/list-block-merge-core.test.ts tests/action-runner-loading.test.ts` | pass | `docs/project-structure.md`、`AGENTS.md`、`CLAUDE.md` | 新增 selection text transform core 并将换行/标点/空格计划逻辑下沉；保留 DOM 局部选区行为 |
+| RF-304 | 2026-05-19 | 2026-05-19 | `corepack pnpm vitest run tests/key-info-model.test.ts tests/key-info-inline.test.ts tests/key-info-pipeline.test.ts tests/key-info-service-heading-inline.test.ts tests/key-info-service-list-prefix.test.ts tests/key-info-core.test.ts` | pass | `docs/project-structure.md`、`AGENTS.md`、`CLAUDE.md` | 拆出 key-info 文本归一化、span 判定、备注模型模块并新增 model 定向测试 |
+| RF-305 | 2026-05-19 | 2026-05-19 | `corepack pnpm vitest run tests/dock-doc-action-drag-core.test.ts tests/key-info-dock-controls.test.ts tests/key-info-dock-state.test.ts tests/key-info-dock-scroll-interaction.test.ts tests/dock-doc-action-order-core.test.ts tests/dock-panel-core.test.ts` | pass | `docs/project-structure.md`、`AGENTS.md`、`CLAUDE.md` | 抽出 Dock 文档动作拖拽几何与收藏重排核心，并新增定向测试 |
+| RF-306 | 2026-05-19 | 2026-05-19 | `corepack pnpm vitest run tests/plugin-confirm-detail-dialog.test.ts tests/plugin-menu-registration.test.ts tests/plugin-settings.test.ts` | pass | `docs/project-structure.md`、`AGENTS.md`、`CLAUDE.md` | 新增 `ui/confirm-detail-dialog`，生命周期组合根改为调用 UI helper |
+| RF-307 | 2026-05-19 | 2026-05-19 | `corepack pnpm vitest run tests/action-processing-overlay.test.ts tests/plugin-settings.test.ts tests/key-info-dock-controls.test.ts tests/key-info-dock-scroll-interaction.test.ts`; `corepack pnpm build`; `corepack pnpm test` | pass | `docs/project-structure.md`、`AGENTS.md`、`CLAUDE.md` | `src/index.scss` 改为统一入口，样式拆分到 `src/styles/` 功能 partial |
 
 ## 5. 决策与确认
 
-- 用户批准的条目：
-  - `RF-201`
-  - `RF-202`
-  - `RF-203`
-  - `RF-204`
+- 用户批准的条目：`RF-301`、`RF-302`、`RF-303`、`RF-304`、`RF-305`、`RF-306`、`RF-307`
 - 延后的条目：
 - 阻塞条目及原因：
 
-## 6. 文档刷新
+## 6. 下一步
 
-- `docs/project-structure.md`：已于 `2026-05-04` 刷新，补充 `plugin-pinned-tab-manager`、`key-info-navigation`、`key-info-controller-refresh`、`kernel-doc-query`、`action-definitions` 等模块，并同步最新文件/测试统计
-- `README.md`：已于 `2026-05-04` 刷新，补充当前开发命令与最新内部结构边界说明
-- 最终同步检查：4 个获批条目均已完成，结构文档、README 与当前仓库状态已同步
-
-## 7. 下一步
-
-1. 本轮已完成，后续可基于新的模块边界继续评估下一轮候选项。
-2. 若继续拆分运行时模块，保持 `docs/refactor-plan.md`、`docs/project-structure.md` 与 `README.md` 同步更新。
+1. 本轮已获批条目 `RF-301` 至 `RF-307` 已全部完成。
+2. `docs/project-structure.md`、`AGENTS.md` 与 `CLAUDE.md` 已按重构后的模块边界刷新。
+3. 最终验证：`corepack pnpm test`，96 个测试文件、626 个用例通过。

@@ -1,0 +1,31 @@
+.doc-assistant-action-processing {
+  background: color-mix(in srgb, var(--b3-theme-background) 58%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.doc-assistant-action-processing__card {
+  border-radius: var(--da-radius-lg, 12px);
+  border-color: var(--da-border-soft, color-mix(in srgb, var(--b3-border-color) 70%, transparent));
+  background: color-mix(
+    in srgb,
+    var(--da-bg-elev-2, color-mix(in srgb, var(--b3-theme-surface) 91%, #dff1e8 9%)) 90%,
+    transparent
+  );
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-assistant-keyinfo *,
+  .doc-assistant-action-processing * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .doc-assistant-keyinfo.is-entering .doc-assistant-keyinfo__header,
+  .doc-assistant-keyinfo.is-entering .doc-assistant-keyinfo__tabs,
+  .doc-assistant-keyinfo.is-entering .doc-assistant-keyinfo__panel {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

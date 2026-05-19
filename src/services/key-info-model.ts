@@ -1,4 +1,7 @@
 import { KeyInfoType } from "@/core/key-info-core";
+import { maskRanges, replaceLinksWithVisibleText, stripLinks } from "@/services/key-info-text-normalize";
+export { resolveSpanFormatType } from "@/services/key-info-span-format";
+export { extractInlineMemoHint, formatRemarkText, parseInlineMemoFromText, parseRemarkText } from "@/services/key-info-remark-model";
 
 export type SqlKeyInfoRow = {
   id: string;
@@ -83,30 +86,10 @@ export function normalizeTagTextValue(value: string): string {
   return cleanInlineText(text);
 }
 
-function decodeBasicHtmlEntities(text: string): string {
-  return (text || "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&amp;/gi, "&");
-}
-
 export function containsLinkTargetSyntax(source: string): boolean {
   return /<a\b|!?\[[^\]]*?\]\([^)]+\)|\bhref\s*=|\bdata-href\s*=|zotero:\/\//i.test(
     source || ""
   );
-}
-
-function replaceLinksWithVisibleText(source: string): string {
-  let next = decodeBasicHtmlEntities(source || "");
-  next = next.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
-  next = next.replace(/!\[([^\]]*?)\]\([^)]+\)/g, "$1");
-  next = next.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-  next = next.replace(/\[\[([^\]]+)\]\]/g, "$1");
-  next = next.replace(/<https?:\/\/[^>]+>/gi, " ");
-  return next;
 }
 
 export function normalizeInlineVisibleText(source: string): string {
@@ -162,85 +145,6 @@ export function tokenizeType(value: string): string[] {
     .filter(Boolean);
 }
 
-function hasBackgroundHighlightStyle(value: string): boolean {
-  const normalized = (value || "").toLowerCase();
-  return (
-    normalized.includes("background-color") ||
-    normalized.includes("background:") ||
-    normalized.includes("--b3-font-background")
-  );
-}
-
-function hasColorHighlightStyle(value: string): boolean {
-  const normalized = (value || "").toLowerCase();
-  return normalized.includes("color:") || normalized.includes("--b3-font-color");
-}
-
-function hasExcludedGenericHighlightToken(tokens: string[]): boolean {
-  const hasToken = (token: string) => tokens.includes(token);
-  const hasInlineMathToken =
-    (hasToken("inline") && hasToken("math")) ||
-    hasToken("inlinemath") ||
-    hasToken("mathjax") ||
-    hasToken("katex");
-  return (
-    hasToken("code") ||
-    hasToken("kbd") ||
-    hasToken("s") ||
-    hasToken("strike") ||
-    hasToken("strikethrough") ||
-    hasToken("formula") ||
-    hasInlineMathToken
-  );
-}
-
-export function parseInlineMemoFromText(
-  text: string,
-  memoHint?: string
-): { marked: string; memo: string } {
-  const cleaned = cleanInlineText(text);
-  const memo = (memoHint || "").trim();
-  if (memo) {
-    return { marked: cleaned, memo };
-  }
-  let match = cleaned.match(/^(.+?)（(.+?)）$/);
-  if (match) {
-    return { marked: match[1].trim(), memo: match[2].trim() };
-  }
-  match = cleaned.match(/^(.+?)\((.+?)\)$/);
-  if (match) {
-    return { marked: match[1].trim(), memo: match[2].trim() };
-  }
-  return { marked: cleaned, memo: "" };
-}
-
-export function formatRemarkText(marked: string, memo = ""): string {
-  const normalizedMarked = cleanInlineText(marked);
-  const normalizedMemo = cleanInlineText(memo);
-  if (!normalizedMemo) {
-    return normalizedMarked;
-  }
-  if (!normalizedMarked) {
-    return normalizedMemo;
-  }
-  return `${normalizedMarked}（${normalizedMemo}）`;
-}
-
-export function parseRemarkText(value: string): { marked: string; memo: string } {
-  const cleaned = cleanInlineText(value);
-  if (!cleaned) {
-    return { marked: "", memo: "" };
-  }
-  const pairMatch = cleaned.match(/^(.+?)\s*[（(]\s*(.+?)\s*[）)]$/);
-  if (pairMatch) {
-    return {
-      marked: cleanInlineText(pairMatch[1] || ""),
-      memo: cleanInlineText(pairMatch[2] || ""),
-    };
-  }
-  return { marked: cleaned, memo: "" };
-}
-
 export function buildInlineRaw(type: KeyInfoType, text: string): string {
   if (type === "bold") {
     return `**${text}**`;
@@ -264,19 +168,6 @@ export function buildInlineRaw(type: KeyInfoType, text: string): string {
 }
 
 type TextRange = [number, number];
-
-function maskRanges(text: string, ranges: TextRange[]): string {
-  if (!ranges.length) {
-    return text;
-  }
-  const chars = text.split("");
-  ranges.forEach(([start, end]) => {
-    for (let i = start; i < end && i < chars.length; i += 1) {
-      chars[i] = " ";
-    }
-  });
-  return chars.join("");
-}
 
 function collectMarkdownInlineCode(source: string): { ranges: TextRange[]; segments: string[] } {
   const ranges: TextRange[] = [];
@@ -336,10 +227,6 @@ function collectHtmlCode(source: string): { ranges: TextRange[]; segments: strin
     match = pattern.exec(source);
   }
   return { ranges, segments };
-}
-
-function stripLinks(source: string): string {
-  return replaceLinksWithVisibleText(source);
 }
 
 function normalizeBlockRefText(source: string): string {
@@ -405,69 +292,6 @@ export function normalizeHighlightTextWithoutLinksAndCode(raw: string, fallbackT
   next = next.replace(/==/g, " ");
   next = next.replace(/<[^>]+>/g, " ");
   return cleanInlineText(next);
-}
-
-export function resolveSpanFormatType(spanType: string, ial?: string): KeyInfoType | null {
-  const normalized = [spanType, ial].filter(Boolean).join(" ").toLowerCase();
-  const tokens = tokenizeType(normalized);
-  const hasToken = (token: string) => tokens.includes(token);
-  const hasLinkToken =
-    hasToken("a") ||
-    hasToken("link") ||
-    normalized.includes("href=") ||
-    normalized.includes("data-href=");
-  const hasInlineMemo =
-    normalized.includes("inline-memo") ||
-    (hasToken("inline") && hasToken("memo"));
-  if (hasInlineMemo) {
-    return "remark";
-  }
-  if (hasToken("tag")) {
-    return "tag";
-  }
-  if (hasToken("strong")) {
-    return "bold";
-  }
-  if (hasToken("em")) {
-    return "italic";
-  }
-  if (hasToken("u") || hasToken("underline") || hasToken("ins")) {
-    return "underline";
-  }
-  const hasExplicitHighlightToken = hasToken("mark");
-  const hasGenericHighlightToken = hasToken("textmark") || hasToken("text");
-  const hasSuperOrSubscriptToken =
-    hasToken("sup") || hasToken("superscript") || hasToken("sub") || hasToken("subscript");
-  if ((hasExplicitHighlightToken || hasGenericHighlightToken) && hasSuperOrSubscriptToken) {
-    return null;
-  }
-  if (hasExcludedGenericHighlightToken(tokens)) {
-    return null;
-  }
-  if (hasExplicitHighlightToken) {
-    return "highlight";
-  }
-  if (!hasLinkToken && hasToken("textmark")) {
-    return "highlight";
-  }
-  if (
-    !hasLinkToken &&
-    hasToken("text") &&
-    (hasBackgroundHighlightStyle(normalized) || hasColorHighlightStyle(normalized))
-  ) {
-    return "highlight";
-  }
-  return null;
-}
-
-export function extractInlineMemoHint(ial?: string): string {
-  if (!ial) {
-    return "";
-  }
-  const match = ial.match(
-    /(?:inline-memo|memo|data-inline-memo-content|data-memo-content|data-memo)=["']([^"']+)["']/i
-  );
-  return match ? match[1] : "";
 }
 
 export function chunkArray<T>(items: T[], size: number): T[][] {

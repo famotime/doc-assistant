@@ -8,6 +8,14 @@ import {
   PunctuationToggleMode,
 } from "@/core/punctuation-toggle-core";
 import { buildSelectedBlockStyleTogglePreview } from "@/core/selected-block-style-toggle-core";
+import {
+  buildLinebreakToggleMode,
+  buildPunctuationUpdates,
+  convertSingleLineBreaksToParagraphMarks,
+  countSingleLineBreaks,
+  normalizeLineEndings,
+  removeSpaceLikeChars,
+} from "@/core/selection-text-transform-core";
 import { deleteBlocksByIds, getBlockKramdowns, getChildBlocksByParentId, updateBlockMarkdown } from "@/services/kernel";
 import {
   getExplicitlySelectedBlockIds,
@@ -29,50 +37,8 @@ type StyleFailureDetail = {
   reason: string;
 };
 
-type LinebreakToggleMode = "linebreak-to-paragraph" | "paragraph-to-line";
-
 const styleLogger = createDocAssistantLogger("Style");
-const INLINE_SPACE_LIKE_PATTERN = /[ \t\u00A0\u1680\u2000-\u200D\u202F\u205F\u3000\uFEFF]/gu;
 const DELETE_BLOCK_CONCURRENCY = 6;
-
-function normalizeLineEndings(value: string): string {
-  return (value || "").replace(/\r\n/g, "\n");
-}
-
-function countSingleLineBreaks(value: string): number {
-  const normalized = normalizeLineEndings(value);
-  const matches = normalized.match(/(?<!\n)\n(?!\n)/g);
-  return matches?.length || 0;
-}
-
-function convertSingleLineBreaksToParagraphMarks(value: string): string {
-  const normalized = normalizeLineEndings(value);
-  return normalized.replace(/(?<!\n)\n(?!\n)/g, "\n\n");
-}
-
-function isParagraphBlockType(type: string): boolean {
-  const normalized = (type || "").trim().toLowerCase();
-  return (
-    normalized === "p" ||
-    normalized === "paragraph" ||
-    normalized === "nodeparagraph" ||
-    normalized === "i" ||
-    normalized === "listitem" ||
-    normalized === "nodelistitem" ||
-    normalized === "l" ||
-    normalized === "list" ||
-    normalized === "nodelist"
-  );
-}
-
-function removeSpaceLikeChars(value: string): { next: string; removedCount: number } {
-  let removedCount = 0;
-  const next = (value || "").replace(INLINE_SPACE_LIKE_PATTERN, () => {
-    removedCount += 1;
-    return "";
-  });
-  return { next, removedCount };
-}
 
 function findBlockElementById(root: HTMLElement, blockId: string): HTMLElement | null {
   const nodes = root.querySelectorAll<HTMLElement>("[data-node-id]");
@@ -257,24 +223,20 @@ function applySelectedBlocksPunctuationToggleFromDom(
     blockElements.push(block);
   }
 
-  const modeSource = blockElements
-    .map((block) => {
-      const editable =
-        (block.querySelector('[contenteditable="true"]') as HTMLElement | null) || block;
-      return editable.textContent || "";
-    })
-    .join("\n");
-  const mode = detectPunctuationToggleMode(modeSource);
-
+  let source = "";
+  for (const block of blockElements) {
+    source += `${block.textContent || ""}\n`;
+  }
+  const mode = detectPunctuationToggleMode(source);
   let changedBlockCount = 0;
   let changedCount = 0;
   for (const block of blockElements) {
     const editable =
       (block.querySelector('[contenteditable="true"]') as HTMLElement | null) || block;
-    const changedInBlock = convertPunctuationInTextNodes(editable, mode);
-    if (changedInBlock > 0) {
+    const nextChanged = convertPunctuationInTextNodes(editable, mode);
+    if (nextChanged > 0) {
       changedBlockCount += 1;
-      changedCount += changedInBlock;
+      changedCount += nextChanged;
       editable.dispatchEvent(new Event("input", { bubbles: true }));
     }
   }
@@ -568,35 +530,7 @@ export function createSelectionActionHandlers(
 
     const rows = await getBlockKramdowns(selectedIds);
     const sourceMap = new Map(rows.map((item) => [item.id, item.kramdown || ""]));
-    const modeSourceParts: string[] = [];
-    let missingSourceCount = 0;
-    for (const id of selectedIds) {
-      const source = sourceMap.get(id);
-      if (source === undefined) {
-        missingSourceCount += 1;
-        continue;
-      }
-      modeSourceParts.push(source);
-    }
-    const mode = detectPunctuationToggleMode(modeSourceParts.join("\n"));
-
-    const updates: Array<{ id: string; next: string; changedCount: number }> = [];
-    for (const id of selectedIds) {
-      const source = sourceMap.get(id);
-      if (source === undefined) {
-        continue;
-      }
-      const converted = convertChineseEnglishPunctuation(source, mode);
-      if (converted.changedCount <= 0 || converted.next === source) {
-        continue;
-      }
-      updates.push({
-        id,
-        next: converted.next,
-        changedCount: converted.changedCount,
-      });
-    }
-
+    const { updates, missingSourceCount } = buildPunctuationUpdates(selectedIds, sourceMap);
     if (!updates.length) {
       if (missingSourceCount > 0) {
         showMessage(`读取块源码失败，已跳过 ${missingSourceCount} 个块`, 6000, "error");
@@ -650,16 +584,7 @@ export function createSelectionActionHandlers(
       return;
     }
 
-    const hasAnySingleLineBreak = targetBlocks.some(
-      (block) => countSingleLineBreaks(normalizeLineEndings(block.markdown || "")) > 0
-    );
-    const shouldMergeParagraphs =
-      !hasAnySingleLineBreak &&
-      targetBlocks.length > 1 &&
-      targetBlocks.every((block) => isParagraphBlockType(block.type));
-    const mode: LinebreakToggleMode = shouldMergeParagraphs
-      ? "paragraph-to-line"
-      : "linebreak-to-paragraph";
+    const mode = buildLinebreakToggleMode(targetBlocks);
 
     if (mode === "paragraph-to-line") {
       const first = targetBlocks[0];

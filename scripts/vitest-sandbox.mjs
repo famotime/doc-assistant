@@ -27,7 +27,7 @@ childProcess.exec = (command, options, callback) => {
 const vitestCliPath = resolve(
   import.meta.dirname,
   "..",
-  "node_modules/.pnpm/vitest@3.2.4_@types+debug@4_07935ee7891fe4b186d266427dde9c84/node_modules/vitest/dist/cli.js"
+  "node_modules/vitest/dist/cli.js"
 );
 const vitestConfigPath = resolve(import.meta.dirname, "..", "vitest.config.mjs");
 

@@ -1,0 +1,112 @@
+.doc-assistant-confirm-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--b3-theme-on-surface);
+}
+
+.doc-assistant-confirm-detail__text {
+  white-space: pre-wrap;
+}
+
+.doc-assistant-confirm-detail__toggle {
+  border: 1px solid color-mix(in srgb, var(--b3-border-color) 72%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.doc-assistant-confirm-detail__summary {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--b3-theme-primary);
+  user-select: none;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--b3-theme-surface) 88%, transparent);
+  }
+}
+
+.doc-assistant-confirm-detail__list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc-assistant-confirm-detail__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--b3-theme-background) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--b3-border-color) 60%, transparent);
+}
+
+.doc-assistant-confirm-detail__item--selectable {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  cursor: pointer;
+}
+
+.doc-assistant-confirm-detail__checkbox {
+  margin: 3px 0 0;
+}
+
+.doc-assistant-confirm-detail__item--selectable .doc-assistant-confirm-detail__desc {
+  grid-column: 2;
+}
+
+.doc-assistant-confirm-detail__label {
+  justify-self: start;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--b3-theme-on-surface);
+  word-break: break-word;
+}
+
+.doc-assistant-confirm-detail__label--link,
+.doc-assistant-confirm-detail__label--tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  max-width: 100%;
+  padding: 1px 8px;
+  border: 1px solid transparent;
+}
+
+.doc-assistant-confirm-detail__label--link {
+  border-radius: 4px;
+  color: color-mix(in srgb, var(--b3-theme-primary) 82%, #111);
+  background: color-mix(in srgb, var(--b3-theme-primary) 12%, var(--b3-theme-background));
+  border-color: color-mix(in srgb, var(--b3-theme-primary) 28%, transparent);
+}
+
+.doc-assistant-confirm-detail__label--tag {
+  border-radius: 999px;
+  color: color-mix(in srgb, #15803d 78%, var(--b3-theme-on-surface));
+  background: color-mix(in srgb, #22c55e 14%, var(--b3-theme-background));
+  border-color: color-mix(in srgb, #22c55e 36%, transparent);
+}
+
+.doc-assistant-confirm-detail__desc {
+  font-size: 11px;
+  color: var(--b3-theme-on-surface-light);
+  font-family: var(--b3-font-family-code);
+}
+
+.doc-assistant-confirm-detail__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
