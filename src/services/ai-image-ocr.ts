@@ -10,6 +10,7 @@ import { createDocAssistantLogger } from "@/core/logger-core";
 import { forwardProxy, ForwardProxyHeader, ForwardProxyResponse } from "@/services/kernel";
 import { getFileBlob } from "@/services/kernel";
 import { escapeSqlLiteral, sqlPaged } from "@/services/kernel-shared";
+import { requestApi } from "@/services/request";
 
 type ForwardProxyFn = (
   url: string,
@@ -86,8 +87,6 @@ export async function recognizeDocImages(
     return emptyReport();
   }
 
-  const { requestApi: reqApi } = await import("@/services/request");
-
   // Phase 1: concurrent OCR requests (order doesn't matter yet)
   const ocrPromises = imageItems.map(async (item, index) => {
     options.onProgress?.(index + 1, imageItems.length, item.assetPath);
@@ -117,7 +116,7 @@ export async function recognizeDocImages(
 
     recognizedCount += 1;
     const ocrMarkdown = buildOcrQuoteMarkdown(ocrText);
-    await reqApi("/api/block/insertBlock", {
+    await requestApi("/api/block/insertBlock", {
       dataType: "markdown",
       data: ocrMarkdown,
       nextID: "",
