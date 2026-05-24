@@ -33,14 +33,12 @@ export type PluginDocMenuState = {
   docActionOrderState: ActionKey[];
   docFavoriteActionKeys: ActionKey[];
   keyInfoFilterState: KeyInfoFilter;
-  keepNewDocAfterPinnedTabs: boolean;
   aiSummaryConfig: AiServiceConfig;
   monthlyDiaryTemplate: string;
 };
 
 type PluginDocMenuStorageV1 = DocMenuRegistrationStorageV1 & {
   keyInfoFilter?: unknown;
-  keepNewDocAfterPinnedTabs?: unknown;
   aiSummaryConfig?: unknown;
   monthlyDiaryTemplate?: unknown;
 };
@@ -53,7 +51,6 @@ export function buildDefaultPluginDocMenuState(
     docActionOrderState: buildDefaultDocActionOrder(actions),
     docFavoriteActionKeys: [],
     keyInfoFilterState: buildDefaultKeyInfoFilter(),
-    keepNewDocAfterPinnedTabs: false,
     aiSummaryConfig: buildDefaultAiServiceConfig(),
     monthlyDiaryTemplate: DEFAULT_MONTHLY_DIARY_TEMPLATE,
   };
@@ -68,7 +65,6 @@ export function normalizePluginDocMenuState(
     docActionOrderState: normalizeDocActionOrder(raw, actions),
     docFavoriteActionKeys: normalizeDocFavoriteActionKeys(raw, actions),
     keyInfoFilterState: normalizeStoredKeyInfoFilter(raw),
-    keepNewDocAfterPinnedTabs: normalizeKeepNewDocAfterPinnedTabs(raw),
     aiSummaryConfig: normalizeStoredAiSummaryConfig(raw),
     monthlyDiaryTemplate: normalizeStoredMonthlyDiaryTemplate(raw),
   };
@@ -85,13 +81,6 @@ function normalizeStoredKeyInfoFilter(raw: unknown): KeyInfoFilter {
   }
 
   return normalizeKeyInfoFilter(value);
-}
-
-function normalizeKeepNewDocAfterPinnedTabs(raw: unknown): boolean {
-  if (!raw || typeof raw !== "object") {
-    return false;
-  }
-  return (raw as PluginDocMenuStorageV1).keepNewDocAfterPinnedTabs === true;
 }
 
 function normalizeStoredAiSummaryConfig(raw: unknown): AiServiceConfig {
@@ -117,7 +106,6 @@ export function serializePluginDocMenuState(
     actionOrder: state.docActionOrderState,
     favoriteActionKeys: state.docFavoriteActionKeys,
     keyInfoFilter: state.keyInfoFilterState,
-    keepNewDocAfterPinnedTabs: state.keepNewDocAfterPinnedTabs,
     aiSummaryConfig: state.aiSummaryConfig,
     monthlyDiaryTemplate: state.monthlyDiaryTemplate,
   };
@@ -214,16 +202,6 @@ export function setPluginKeyInfoFilter(
   return {
     ...state,
     keyInfoFilterState: normalizeKeyInfoFilter(filter),
-  };
-}
-
-export function setKeepNewDocAfterPinnedTabs(
-  state: PluginDocMenuState,
-  enabled: boolean
-): PluginDocMenuState {
-  return {
-    ...state,
-    keepNewDocAfterPinnedTabs: enabled,
   };
 }
 

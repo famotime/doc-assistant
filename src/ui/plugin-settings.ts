@@ -7,19 +7,15 @@ import { createAiSettingsPanel } from "@/ui/plugin-settings-ai";
 import { createMonthlyDiarySettingsPanel } from "@/ui/plugin-settings-diary";
 import { installSettingHostNormalizer } from "@/ui/plugin-settings-host";
 import { createMenuRegistrationPanel } from "@/ui/plugin-settings-menu";
-import { createCheckbox } from "@/ui/plugin-settings-shared";
-
 type CreatePluginSettingsOptions = {
   actions: ActionConfig[];
   registration: DocMenuRegistrationState;
   isMobile: boolean;
-  keepNewDocAfterPinnedTabs: boolean;
   aiSummaryConfig: AiServiceConfig;
   monthlyDiaryTemplate: string;
   hiddenSettingKeys?: Iterable<HiddenPluginSettingKey>;
   onAiSummaryConfigChange: (config: AiServiceConfig) => Promise<void> | void;
   onMonthlyDiaryTemplateChange: (template: string) => Promise<void> | void;
-  onToggleKeepNewDocAfterPinnedTabs: (enabled: boolean) => Promise<void> | void;
   onToggleAll: (enabled: boolean) => Promise<void> | void;
   onToggleSingle: (key: ActionKey, enabled: boolean) => Promise<void> | void;
 };
@@ -28,19 +24,6 @@ export function createPluginSettings(options: CreatePluginSettingsOptions) {
   const setting = new Setting({ width: "640px" });
   const hiddenSettingKeys = new Set(options.hiddenSettingKeys || []);
   const hostNormalizedPanels: HTMLElement[] = [];
-
-  const moveAfterPinnedSwitch = createCheckbox({
-    checked: options.keepNewDocAfterPinnedTabs,
-    onChange: async (checked) => {
-      await options.onToggleKeepNewDocAfterPinnedTabs(checked);
-    },
-  });
-
-  setting.addItem({
-    title: "钉住页签始终保持可见",
-    description: "桌面端开启后，打开新文档时会自动调整页签栏视野，尽量保持钉住页签始终可见。",
-    actionElement: moveAfterPinnedSwitch,
-  });
 
   if (!hiddenSettingKeys.has("ai-service")) {
     const aiPanel = createAiSettingsPanel({

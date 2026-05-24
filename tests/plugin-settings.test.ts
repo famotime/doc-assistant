@@ -161,16 +161,11 @@ describe("plugin settings", () => {
     expect(settingInstances).toHaveLength(2);
     const setting = settingInstances[1];
     expect(plugin.setting).toBe(setting);
-    expect(setting.items[0]?.title).toBe("钉住页签始终保持可见");
-    expect(setting.items[1]?.title).toBe("注册命令到文档菜单");
-    expect(setting.items[1]?.direction).toBe("column");
-    expect(setting.items).toHaveLength(2);
+    expect(setting.items[0]?.title).toBe("注册命令到文档菜单");
+    expect(setting.items[0]?.direction).toBe("column");
+    expect(setting.items).toHaveLength(1);
 
-    const tabToggle = setting.items[0]?.actionElement as HTMLInputElement;
-    expect(tabToggle.type).toBe("checkbox");
-    expect(tabToggle.checked).toBe(false);
-
-    const menuRegistrationPanel = setting.items[1]?.actionElement as HTMLElement;
+    const menuRegistrationPanel = setting.items[0]?.actionElement as HTMLElement;
     expect(menuRegistrationPanel.classList.contains("doc-assistant-settings__menu-registration")).toBe(
       true
     );
@@ -241,20 +236,13 @@ describe("plugin settings", () => {
     plugin.openSetting();
 
     const setting = settingInstances[1];
-    const tabToggle = setting.items[0]?.actionElement as HTMLInputElement;
-    const menuRegistrationPanel = setting.items[1]?.actionElement as HTMLElement;
+    const menuRegistrationPanel = setting.items[0]?.actionElement as HTMLElement;
     const allToggle = menuRegistrationPanel.querySelector(
       ".doc-assistant-settings__menu-registration-summary input[type='checkbox']"
     ) as HTMLInputElement;
     const singleToggle = menuRegistrationPanel.querySelector(
       "[data-action-key='insert-backlinks'] input[type='checkbox']"
     ) as HTMLInputElement;
-
-    tabToggle.checked = true;
-    tabToggle.dispatchEvent(new Event("change"));
-    await Promise.resolve();
-
-    expect(plugin.keepNewDocAfterPinnedTabs).toBe(true);
 
     allToggle.checked = true;
     allToggle.dispatchEvent(new Event("change"));
@@ -273,7 +261,6 @@ describe("plugin settings", () => {
     const stored = await plugin.loadData("doc-menu-registration");
     expect(stored).toEqual(
       expect.objectContaining({
-        keepNewDocAfterPinnedTabs: true,
         actionEnabled: expect.objectContaining({
           "insert-backlinks": false,
         }),
@@ -296,7 +283,6 @@ describe("plugin settings", () => {
       actions: regroupedActions,
       registration: buildDefaultDocMenuRegistration(regroupedActions),
       isMobile: false,
-      keepNewDocAfterPinnedTabs: false,
       aiSummaryConfig: {
         enabled: false,
         baseUrl: "",
@@ -307,13 +293,12 @@ describe("plugin settings", () => {
       monthlyDiaryTemplate: "## {{date}} {{weekday}}",
       onAiSummaryConfigChange: vi.fn(),
       onMonthlyDiaryTemplateChange: vi.fn(),
-      onToggleKeepNewDocAfterPinnedTabs: vi.fn(),
       onToggleAll: vi.fn(),
       onToggleSingle: vi.fn(),
     });
 
     const setting = settingInstances[0];
-    const menuRegistrationPanel = setting.items[2]?.actionElement as HTMLElement;
+    const menuRegistrationPanel = setting.items[1]?.actionElement as HTMLElement;
     const groupTitles = Array.from(
       menuRegistrationPanel.querySelectorAll(".doc-assistant-settings__menu-registration-group-title")
     ).map((element) => element.textContent?.trim());
@@ -337,7 +322,6 @@ describe("plugin settings", () => {
       actions: ACTIONS,
       registration: buildDefaultDocMenuRegistration(ACTIONS),
       isMobile: true,
-      keepNewDocAfterPinnedTabs: false,
       aiSummaryConfig: {
         enabled: false,
         baseUrl: "",
@@ -348,13 +332,12 @@ describe("plugin settings", () => {
       monthlyDiaryTemplate: "## {{date}} {{weekday}}",
       onAiSummaryConfigChange: vi.fn(),
       onMonthlyDiaryTemplateChange: vi.fn(),
-      onToggleKeepNewDocAfterPinnedTabs: vi.fn(),
       onToggleAll: vi.fn(),
       onToggleSingle: vi.fn(),
     });
 
     const setting = settingInstances[0];
-    const menuRegistrationPanel = setting.items[2]?.actionElement as HTMLElement;
+    const menuRegistrationPanel = setting.items[1]?.actionElement as HTMLElement;
     const moveBacklinksRow = menuRegistrationPanel.querySelector(
       "[data-action-key='move-backlinks']"
     ) as HTMLElement;
@@ -378,7 +361,6 @@ describe("plugin settings", () => {
       actions: ACTIONS,
       registration: buildDefaultDocMenuRegistration(ACTIONS),
       isMobile: false,
-      keepNewDocAfterPinnedTabs: false,
       aiSummaryConfig: {
         enabled: false,
         baseUrl: "",
@@ -389,14 +371,13 @@ describe("plugin settings", () => {
       monthlyDiaryTemplate: "## {{date}} {{weekday}}",
       onAiSummaryConfigChange: vi.fn(),
       onMonthlyDiaryTemplateChange: vi.fn(),
-      onToggleKeepNewDocAfterPinnedTabs: vi.fn(),
       onToggleAll: vi.fn(),
       onToggleSingle: vi.fn(),
     });
 
-    const aiPanel = setting.items[1]?.actionElement as HTMLElement;
-    const menuRegistrationPanel = setting.items[2]?.actionElement as HTMLElement;
-    const diaryPanel = setting.items[3]?.actionElement as HTMLElement;
+    const aiPanel = setting.items[0]?.actionElement as HTMLElement;
+    const menuRegistrationPanel = setting.items[1]?.actionElement as HTMLElement;
+    const diaryPanel = setting.items[2]?.actionElement as HTMLElement;
     const diaryHostItem = document.createElement("div");
     diaryHostItem.className = "fn__flex b3-label config__item";
     const diaryTitle = document.createElement("div");
@@ -457,11 +438,10 @@ describe("plugin settings", () => {
 
       const setting = settingInstances[1];
       expect(setting.items.map((item) => item.title)).toEqual([
-        "钉住页签始终保持可见",
         "注册命令到文档菜单",
       ]);
 
-      const menuRegistrationPanel = setting.items[1]?.actionElement as HTMLElement;
+      const menuRegistrationPanel = setting.items[0]?.actionElement as HTMLElement;
       expect(
         menuRegistrationPanel.querySelector("[data-action-key='create-monthly-diary']")
       ).toBeNull();

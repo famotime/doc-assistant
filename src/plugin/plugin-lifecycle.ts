@@ -35,7 +35,6 @@ import {
   reorderPluginDocFavoriteActions,
   resetPluginDocActionOrder,
   serializePluginDocMenuState,
-  setKeepNewDocAfterPinnedTabs,
   setAllPluginDocMenuRegistration,
   setAiSummaryConfig,
   setMonthlyDiaryTemplate,
@@ -44,7 +43,6 @@ import {
   setPluginKeyInfoFilter,
   setSinglePluginDocMenuRegistration,
 } from "@/plugin/plugin-lifecycle-state";
-import { createPinnedTabPlacementManager } from "@/plugin/plugin-pinned-tab-manager";
 import { createPluginSettings } from "@/ui/plugin-settings";
 import {
   destroyActionProcessingOverlay,
@@ -68,11 +66,8 @@ export default class DocLinkToolkitPlugin extends Plugin {
     buildDefaultPluginDocMenuState(ACTIONS).docActionOrderState;
   private docFavoriteActionKeys: ActionKey[] = [];
   private keyInfoFilterState: KeyInfoFilter = buildDefaultKeyInfoFilter();
-  private keepNewDocAfterPinnedTabs =
-    buildDefaultPluginDocMenuState(ACTIONS).keepNewDocAfterPinnedTabs;
   private aiSummaryConfig = buildDefaultPluginDocMenuState(ACTIONS).aiSummaryConfig;
   private monthlyDiaryTemplate = buildDefaultPluginDocMenuState(ACTIONS).monthlyDiaryTemplate;
-  private readonly pinnedTabPlacementManager = createPinnedTabPlacementManager();
   private readonly powerButtonsProvider: PowerButtonsCommandProvider = createPowerButtonsProvider({
     pluginVersion: pluginInfo.version,
     runAction: (action, context) => this.actionRunner.runAction(action, context),
@@ -125,11 +120,6 @@ export default class DocLinkToolkitPlugin extends Plugin {
     }
     this.currentDocId = id;
     this.currentProtyle = protyle;
-    this.pinnedTabPlacementManager.handleProtyleSwitch({
-      protyle,
-      enabled: this.keepNewDocAfterPinnedTabs,
-      isMobile: this.isMobile,
-    });
     void this.keyInfoController.refresh(id, protyle);
   };
 
@@ -168,7 +158,6 @@ export default class DocLinkToolkitPlugin extends Plugin {
     await this.loadDocMenuRegistrationState();
     const frontend = getFrontend();
     this.isMobile = frontend === "mobile" || frontend === "browser-mobile";
-    this.seedKnownTabIds();
     this.setting = this.buildPluginSettingPage();
 
     bindPluginLifecycleEvents(this.eventBus, {
@@ -187,7 +176,6 @@ export default class DocLinkToolkitPlugin extends Plugin {
   }
 
   onunload() {
-    this.pinnedTabPlacementManager.clearPendingTasks();
     unbindPluginLifecycleEvents(this.eventBus, {
       onSwitchProtyle: this.onSwitchProtyle,
       onEditorTitleMenu: this.onEditorTitleMenu,
@@ -252,14 +240,11 @@ export default class DocLinkToolkitPlugin extends Plugin {
       actions: this.getOrderedActions(),
       registration: this.docMenuRegistrationState,
       isMobile: this.isMobile,
-      keepNewDocAfterPinnedTabs: this.keepNewDocAfterPinnedTabs,
       aiSummaryConfig: this.aiSummaryConfig,
       monthlyDiaryTemplate: this.monthlyDiaryTemplate,
       hiddenSettingKeys: getHiddenPluginSettingKeys(ALPHA_FEATURE_HIDE_CONFIG),
       onAiSummaryConfigChange: (config) => this.setAiSummaryConfig(config),
       onMonthlyDiaryTemplateChange: (template) => this.setMonthlyDiaryTemplate(template),
-      onToggleKeepNewDocAfterPinnedTabs: (enabled) =>
-        this.setKeepNewDocAfterPinnedTabs(enabled),
       onToggleAll: (enabled) => this.setAllDocMenuRegistration(enabled),
       onToggleSingle: (key, enabled) =>
         this.setSingleDocMenuRegistration(key, enabled),
@@ -297,7 +282,6 @@ export default class DocLinkToolkitPlugin extends Plugin {
       docActionOrderState: this.docActionOrderState,
       docFavoriteActionKeys: this.docFavoriteActionKeys,
       keyInfoFilterState: this.keyInfoFilterState,
-      keepNewDocAfterPinnedTabs: this.keepNewDocAfterPinnedTabs,
       aiSummaryConfig: this.aiSummaryConfig,
       monthlyDiaryTemplate: this.monthlyDiaryTemplate,
     };
@@ -308,7 +292,6 @@ export default class DocLinkToolkitPlugin extends Plugin {
     this.docActionOrderState = state.docActionOrderState;
     this.docFavoriteActionKeys = state.docFavoriteActionKeys;
     this.keyInfoFilterState = state.keyInfoFilterState;
-    this.keepNewDocAfterPinnedTabs = state.keepNewDocAfterPinnedTabs;
     this.aiSummaryConfig = state.aiSummaryConfig;
     this.monthlyDiaryTemplate = state.monthlyDiaryTemplate;
   }
@@ -368,13 +351,6 @@ export default class DocLinkToolkitPlugin extends Plugin {
     await this.persistDocMenuRegistrationState();
   }
 
-  async setKeepNewDocAfterPinnedTabs(enabled: boolean) {
-    this.applyDocMenuState(
-      setKeepNewDocAfterPinnedTabs(this.snapshotDocMenuState(), enabled)
-    );
-    await this.persistDocMenuRegistrationState();
-  }
-
   async setAiSummaryConfig(config: AiServiceConfig) {
     this.applyDocMenuState(
       setAiSummaryConfig(this.snapshotDocMenuState(), config)
@@ -387,24 +363,5 @@ export default class DocLinkToolkitPlugin extends Plugin {
       setMonthlyDiaryTemplate(this.snapshotDocMenuState(), template)
     );
     await this.persistDocMenuRegistrationState();
-  }
-
-  private seedKnownTabIds() {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    this.pinnedTabPlacementManager.seedKnownTabIds((window as Window & {
-      siyuan?: {
-        layout?: {
-          centerLayout?: unknown;
-        };
-        config?: {
-          uiLayout?: {
-            layout?: unknown;
-          };
-        };
-      };
-    }).siyuan);
   }
 }
