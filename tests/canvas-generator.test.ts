@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildCanvasFromKeyInfoItems } from "@/services/canvas-generator";
+import { buildCanvasFromKeyInfoItems, preprocessItemsForCanvas } from "@/services/canvas-generator";
 import type { KeyInfoItem } from "@/core/key-info-core";
 
 function makeItem(
@@ -129,5 +129,67 @@ describe("buildCanvasFromKeyInfoItems", () => {
         expect.objectContaining({ fromNode: l2!.id, toNode: l3!.id }),
       ])
     );
+  });
+});
+
+describe("preprocessItemsForCanvas", () => {
+  test("inserts H1 doc title when first item is not an H1 matching the title", () => {
+    const items = [
+      makeItem({ type: "bold", text: "Key point", raw: "**Key point**", blockSort: 0, order: 0 }),
+    ];
+    const result = preprocessItemsForCanvas(items, "My Document");
+    expect(result).toHaveLength(2);
+    expect(result[0].type).toBe("title");
+    expect(result[0].text).toBe("My Document");
+    expect(result[0].raw).toBe("# My Document");
+    expect(result[1].text).toBe("Key point");
+  });
+
+  test("does not insert H1 when first item already is an H1 with matching title", () => {
+    const items = [
+      makeItem({ type: "title", text: "My Document", raw: "# My Document", blockSort: 0, order: 0 }),
+      makeItem({ type: "bold", text: "Detail", raw: "**Detail**", blockSort: 1, order: 1 }),
+    ];
+    const result = preprocessItemsForCanvas(items, "My Document");
+    expect(result).toHaveLength(2);
+    expect(result[0].text).toBe("My Document");
+    expect(result[0].raw).toBe("# My Document");
+    expect(result[1].text).toBe("Detail");
+  });
+
+  test("inserts H1 when first item is an H2 (not H1)", () => {
+    const items = [
+      makeItem({ type: "title", text: "Section", raw: "## Section", blockSort: 0, order: 0 }),
+    ];
+    const result = preprocessItemsForCanvas(items, "Section");
+    expect(result).toHaveLength(2);
+    expect(result[0].raw).toBe("# Section");
+    expect(result[1].raw).toBe("## Section");
+  });
+
+  test("inserts H1 when first item is H1 but text does not match title", () => {
+    const items = [
+      makeItem({ type: "title", text: "Introduction", raw: "# Introduction", blockSort: 0, order: 0 }),
+    ];
+    const result = preprocessItemsForCanvas(items, "My Document");
+    expect(result).toHaveLength(2);
+    expect(result[0].text).toBe("My Document");
+    expect(result[1].text).toBe("Introduction");
+  });
+
+  test("handles empty items array", () => {
+    const result = preprocessItemsForCanvas([], "Title");
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("title");
+    expect(result[0].raw).toBe("# Title");
+  });
+
+  test("trims whitespace when comparing title text", () => {
+    const items = [
+      makeItem({ type: "title", text: "  My Doc  ", raw: "# My Doc", blockSort: 0, order: 0 }),
+    ];
+    const result = preprocessItemsForCanvas(items, "My Doc");
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(items[0]);
   });
 });

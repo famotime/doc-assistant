@@ -118,6 +118,26 @@ function findNonOverlappingPosition(
   return { x: node.x, y: node.y };
 }
 
+/**
+ * Preprocess items for canvas generation: insert the document title as an H1
+ * at the beginning, unless the first item is already an H1 with the same text.
+ */
+export function preprocessItemsForCanvas(items: KeyInfoItem[], docTitle: string): KeyInfoItem[] {
+  const first = items[0];
+  if (
+    first
+    && first.type === "title"
+    && /^#{1}\s/.test(first.raw || "")
+    && first.text.trim() === docTitle.trim()
+  ) {
+    return items;
+  }
+  return [
+    { ...first!, id: `synth-h1-${Date.now()}`, type: "title" as const, text: docTitle, raw: `# ${docTitle}` },
+    ...items,
+  ];
+}
+
 // ── Canvas generation (mirrors siyuan-canvas decomposeSelectedDocument layout) ──
 
 export function buildCanvasFromKeyInfoItems(

@@ -774,31 +774,43 @@
 }
 
 .doc-assistant-keyinfo__footer-btn--canvas {
-  --keyinfo-footer-color: var(--b3-theme-primary);
-  color: var(--keyinfo-footer-color);
-  border-color: color-mix(in srgb, var(--keyinfo-footer-color) 64%, var(--b3-border-color));
+  --keyinfo-footer-color: var(--doc-assistant-accent-text);
+  color: var(--doc-assistant-accent-text);
+  border-color: color-mix(in srgb, var(--doc-assistant-accent-strong) 72%, var(--b3-border-color));
   background:
+    radial-gradient(
+      140% 120% at 8% 0%,
+      color-mix(in srgb, #ffffff 35%, transparent) 0%,
+      transparent 55%
+    ),
     linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--b3-theme-primary-light) 88%, #ffffff 12%) 0%,
-      color-mix(in srgb, var(--b3-theme-primary-light) 82%, var(--b3-theme-surface) 18%) 100%
+      140deg,
+      color-mix(in srgb, var(--doc-assistant-accent) 78%, #b7e6cb 22%) 0%,
+      color-mix(in srgb, var(--doc-assistant-accent) 86%, #7dc69f 14%) 52%,
+      color-mix(in srgb, var(--doc-assistant-accent-strong) 92%, #245f45 8%) 100%
     );
   box-shadow:
-    0 8px 18px color-mix(in srgb, var(--b3-theme-primary) 16%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    0 10px 20px rgba(44, 122, 88, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .doc-assistant-keyinfo__footer-btn--canvas:hover {
-  border-color: color-mix(in srgb, var(--keyinfo-footer-color) 72%, var(--b3-border-color));
+  border-color: color-mix(in srgb, var(--doc-assistant-accent-strong) 82%, var(--b3-border-color));
   background:
+    radial-gradient(
+      140% 120% at 8% 0%,
+      color-mix(in srgb, #ffffff 42%, transparent) 0%,
+      transparent 52%
+    ),
     linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--b3-theme-primary-light) 92%, #ffffff 8%) 0%,
-      color-mix(in srgb, var(--b3-theme-primary-light) 86%, var(--b3-theme-surface) 14%) 100%
+      140deg,
+      color-mix(in srgb, var(--doc-assistant-accent) 82%, #c4ecd5 18%) 0%,
+      color-mix(in srgb, var(--doc-assistant-accent) 88%, #87cca8 12%) 52%,
+      color-mix(in srgb, var(--doc-assistant-accent-strong) 92%, #235a41 8%) 100%
     );
   box-shadow:
-    0 11px 20px color-mix(in srgb, var(--b3-theme-primary) 20%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.38);
+    0 13px 24px rgba(44, 122, 88, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .doc-assistant-keyinfo__footer-icon {

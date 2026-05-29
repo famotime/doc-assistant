@@ -16,7 +16,7 @@ import {
 import { createKeyInfoNavigation } from "@/plugin/key-info-navigation";
 import { ActionConfig, ActionKey } from "@/plugin/actions";
 import { ProtyleLike } from "@/plugin/doc-context";
-import { buildCanvasFromKeyInfoItems } from "@/services/canvas-generator";
+import { buildCanvasFromKeyInfoItems, preprocessItemsForCanvas } from "@/services/canvas-generator";
 import type { CanvasPluginLike } from "@/services/canvas-plugin-resolver";
 import { getDocReadonlyState } from "@/services/kernel";
 import { getDocKeyInfo } from "@/services/key-info";
@@ -288,7 +288,8 @@ export class KeyInfoController {
 
     const state = this.keyInfoDock.getState();
     const docTitle = state.docTitle || this.deps.getCurrentDocId() || "canvas";
-    const canvasDoc = buildCanvasFromKeyInfoItems(items, docTitle);
+    const processedItems = preprocessItemsForCanvas(items, docTitle);
+    const canvasDoc = buildCanvasFromKeyInfoItems(processedItems, docTitle);
     await canvasPlugin.openCanvasTab({
       raw: JSON.stringify(canvasDoc),
       title: docTitle,
